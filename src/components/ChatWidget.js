@@ -550,7 +550,7 @@ export class ChatWidget extends HTMLElement {
         if (msg._skipRendering) return;
 
         const isForm = msg.payload_type === 'sentToUser' && msg.media && msg.media.some(m => m.templateType === 'form');
-        const isQr = msg.payload_type === 'sentToUser' && msg.quickReplies;
+        const isQr = msg.payload_type === 'sentToUser' && msg.quickReplies && msg.quickReplies.options && msg.quickReplies.options.length > 0;
 
         // If it's a Form/QR, and NOT answered, and NOT the last message... hide it!
         if ((isForm || isQr) && !msg._isAnswered && index < messages.length - 1) {
