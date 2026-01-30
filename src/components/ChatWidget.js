@@ -864,7 +864,15 @@ export class ChatWidget extends HTMLElement {
         } else {
           // RENDER OTHER MEDIA (Image, Video, File)
           const type = m.contentType || m.mimeType || '';
-          const url = m.url || m.contentUrl;
+          let url = m.url || m.contentUrl || (m.payload && m.payload.url);
+
+          if (!url && m.file) {
+            if (typeof m.file === 'string') {
+              url = m.file;
+            } else if (m.file.url) {
+              url = m.file.url;
+            }
+          }
 
           if (type.includes('image')) {
             const img = document.createElement('img');
@@ -916,7 +924,7 @@ export class ChatWidget extends HTMLElement {
             icon.textContent = '📎'; // Simple icon
 
             const link = document.createElement('a');
-            link.href = url;
+            link.href = url || '#';
             link.textContent = m.fileName || 'Download File';
             link.target = '_blank'; // Open in new tab
             link.className = 'file-link';
@@ -924,7 +932,13 @@ export class ChatWidget extends HTMLElement {
             // Fix: Stop propagation to prevent "click outside" handler from closing the widget
             link.addEventListener('click', (e) => {
               e.stopPropagation();
+              if (!url || url === '#' || url === 'undefined') {
+                e.preventDefault();
+                console.error('Invalid file URL:', url, m);
+              }
             });
+
+
 
             fileContainer.appendChild(icon);
             fileContainer.appendChild(link);
