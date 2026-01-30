@@ -920,7 +920,11 @@ export class ChatWidget extends HTMLElement {
             link.textContent = m.fileName || 'Download File';
             link.target = '_blank'; // Open in new tab
             link.className = 'file-link';
-            // Forcing download might require proxy if header missing, but 'download' attr helps
+
+            // Fix: Stop propagation to prevent "click outside" handler from closing the widget
+            link.addEventListener('click', (e) => {
+              e.stopPropagation();
+            });
 
             fileContainer.appendChild(icon);
             fileContainer.appendChild(link);
