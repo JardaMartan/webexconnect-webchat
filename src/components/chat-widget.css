@@ -94,51 +94,42 @@
         /* Outgoing usually stays brand color, ensure contrast is okay */
         --bubble-outgoing-text: #ffffff;
     }
+}
 
-    /* Fix ghost button hover in dark mode */
-    /* Target common ghost buttons (Back, Close) */
-    /* Use !important to override internal Shadow DOM styles if necessary, 
-       but standard md-button behavior with background override on host works best */
-    .back-btn:hover,
-    .close-btn:hover {
-        background-color: rgba(255, 255, 255, 0.15) !important;
-        border-radius: 50%;
-        /* Force circular background on host element */
+/* ==========================================================================
+   ICON BUTTONS (Native button replacement for Back/Close)
+   ========================================================================== */
+.icon-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    border-radius: 50%;
+    padding: 0;
+    color: inherit;
+    /* Inherit text color from header/parent */
+    transition: background-color 0.2s;
+    outline: none;
+    /* Focus ring handles accessibility if needed, or add custom :focus */
+}
+
+.icon-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    /* Light mode hover */
+}
+
+@media (prefers-color-scheme: dark) {
+    .icon-btn:hover {
+        background-color: rgba(255, 255, 255, 0.15);
+        /* Dark mode hover */
     }
 }
 
-/* Enforce strict centering and dimensions to match 'size' attribute and avoid eccentricity */
-.back-btn,
-.close-btn {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 28px !important;
-    height: 28px !important;
-    min-width: 28px !important;
-    padding: 0 !important;
-    box-sizing: border-box !important;
-    pointer-events: auto !important;
-    /* Ensure host captures events */
-    transition: none !important;
-    /* Prevent transition flickers */
-}
-
-/* Aggressively prevent ANY child or pseudo-element from stealing hover state */
-.back-btn *,
-.close-btn *,
-.back-btn::before,
-.back-btn::after,
-.close-btn::before,
-.close-btn::after {
-    pointer-events: none !important;
-}
-
-/* Ensure hover state is persistent */
-.back-btn:hover,
-.close-btn:hover {
-    transition: none !important;
-}
 
 /* ==========================================================================
    LAUNCHER (Floating Action Button)
