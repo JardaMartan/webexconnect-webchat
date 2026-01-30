@@ -708,56 +708,78 @@ export class ChatWidget extends HTMLElement {
             if (field.mandatory) input.required = true;
             if (isDisabled) input.disabled = true;
 
+            // Submit on Enter
+            input.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault(); // Prevent newline in textarea or other side effects
+                submitForm();
+              }
+            });
+            // Also listen for custom event from md-input if needed, but standard keydown usually works.
+            // md-input might shadow DOM, so we might need input-keydown if exposed.
+            // Previous code used 'input-keydown' for main chat input. Let's add that too for safety.
+            input.addEventListener('input-keydown', (e) => {
+              if (e.detail && e.detail.key === 'Enter') {
+                submitForm();
+              }
+            });
+
             inputs.push(input);
             inputWrapper.appendChild(input);
             formContainer.appendChild(inputWrapper);
           });
 
-          // Submit Button (Only if NOT disabled)
-          if (!isDisabled) {
-            const submitBtn = document.createElement('md-button');
-            submitBtn.variant = 'primary';
-            submitBtn.size = '28';
-            submitBtn.textContent = this.i18n.t('submit');
-            submitBtn.style.marginTop = '8px';
+          // Submit Logic (Function instead of Button)
+          const submitForm = () => {
+            // Collect Data
+            const formData = inputs.map(input => ({
+              name: input.name,
+              value: input.value,
+              label: input.previousElementSibling ? input.previousElementSibling.textContent : input.name
+            }));
 
-            submitBtn.addEventListener('click', () => {
-              // Collect Data
-              const formData = inputs.map(input => ({
-                name: input.name,
-                value: input.value,
-                label: input.previousElementSibling ? input.previousElementSibling.textContent : input.name
-              }));
+            // Validate Mandatory
+            const missing = inputs.filter(i => i.required && !i.value);
+            if (missing.length > 0) {
+              // Determine which attribute validation failed
+              // For now, just alert or maybe verify if md-input supports invalid state
+              alert(this.i18n.t('fill_required') || 'Please fill required fields');
+              return;
+            }
 
-              // Validate Mandatory
-              const missing = inputs.filter(i => i.required && !i.value);
-              if (missing.length > 0) {
-                alert('Please fill required fields');
-                return;
-              }
+            // Send Response
+            this.sendMessage(null, [{
+              templateType: 'form',
+              templateId: m.templateId,
+              payload: { fields: formData }
+            }]);
 
-              // Send Response
-              this.sendMessage(null, [{
-                templateType: 'form',
-                templateId: m.templateId,
-                payload: { fields: formData }
-              }]);
+            // Disable Form locally
+            inputs.forEach(i => i.disabled = true);
 
-              // Disable Form locally
-              inputs.forEach(i => i.disabled = true);
-              submitBtn.remove();
-              const sentLabel = document.createElement('div');
-              sentLabel.textContent = this.i18n.t('submitted');
-              sentLabel.style.color = '#0070d2';
-              sentLabel.style.fontSize = '12px';
-              sentLabel.style.marginTop = '8px';
-              formContainer.appendChild(sentLabel);
-            });
-            formContainer.appendChild(submitBtn);
-          } else {
-            // If disabled (e.g. history), show "Submitted" status if it was an answer or history?
-            // For now, just leave inputs disabled.
+            // Show "Submitted" label
+            const sentLabel = document.createElement('div');
+            sentLabel.textContent = this.i18n.t('submitted');
+            sentLabel.style.color = '#0070d2';
+            sentLabel.style.fontSize = '12px';
+            sentLabel.style.marginTop = '8px';
+            formContainer.appendChild(sentLabel);
+
+            // Refocus Main Chat Input
+            setTimeout(() => {
+              const mainInput = this.shadowRoot.querySelector('#chatInput');
+              if (mainInput) mainInput.focus();
+            }, 100);
+          };
+
+          // Auto-focus first input on render
+          if (!isDisabled && inputs.length > 0) {
+            setTimeout(() => {
+              inputs[0].focus();
+            }, 300); // Slight delay for rendering
           }
+
+
 
           item.appendChild(formContainer);
         } else {
