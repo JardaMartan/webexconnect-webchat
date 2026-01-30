@@ -674,6 +674,7 @@ export class ChatWidget extends HTMLElement {
               input = document.createElement('md-input');
               input.type = field.type || 'text';
             }
+            input.setAttribute('shape', 'pill'); // Apply pill style for all inputs
 
             input.name = field.name;
             input.value = field.value || '';
