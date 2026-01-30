@@ -757,13 +757,7 @@ export class ChatWidget extends HTMLElement {
             // Disable Form locally
             inputs.forEach(i => i.disabled = true);
 
-            // Show "Submitted" label
-            const sentLabel = document.createElement('div');
-            sentLabel.textContent = this.i18n.t('submitted');
-            sentLabel.style.color = '#0070d2';
-            sentLabel.style.fontSize = '12px';
-            sentLabel.style.marginTop = '8px';
-            formContainer.appendChild(sentLabel);
+
 
             // Refocus Main Chat Input
             setTimeout(() => {
