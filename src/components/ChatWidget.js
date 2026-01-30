@@ -751,6 +751,7 @@ export class ChatWidget extends HTMLElement {
             this.sendMessage(null, [{
               templateType: 'form',
               templateId: m.templateId,
+              contentType: 'template',
               payload: { fields: formData }
             }]);
 
