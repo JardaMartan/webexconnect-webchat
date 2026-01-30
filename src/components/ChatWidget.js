@@ -158,7 +158,7 @@ export class ChatWidget extends HTMLElement {
             <style>${styles}</style>
             <md-theme lumos ${this.isDark ? 'darkTheme' : ''}>
             <div class="launcher-container">
-              <md-button variant="primary" size="52" circle id="launcherBtn">
+              <md-button variant="primary" size="52" circle id="launcherBtn" class="launcher">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                   <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
                 </svg>
@@ -177,60 +177,60 @@ export class ChatWidget extends HTMLElement {
 
     if (this.view === 'list') {
       headerHtml = `
-        < span > ${this.i18n.t('my_chats')}</span >
+          <span>${this.i18n.t('my_chats')}</span>
           <div class="close-btn" id="closeBtn">✕</div>
       `;
       const threadsHtml = this.threads.map(t => `
-        < md - list - item slot = "list-item" class="thread-item" data - id="${t.id}" >
+        <md-list-item slot="list-item" class="thread-item" data-id="${t.id}">
           <div slot="start" class="thread-avatar">
             ${(t.title || 'C').charAt(0)}
           </div>
           <div class="thread-title">${t.title || this.i18n.t('default_title')}</div>
           <div class="thread-id">ID: ${t.id.slice(0, 8)}...</div>
-        </md - list - item >
-        `).join('');
+        </md-list-item>
+      `).join('');
 
       contentHtml = `
-        < div class="view-container" style = "position:relative" >
+        <div class="view-container" style="position:relative">
           <div class="content-padded">
              <md-button id="newChatBtn" variant="primary" class="new-chat-btn">${this.i18n.t('start_new_chat')}</md-button>
           </div>
           <md-list>
             ${threadsHtml}
           </md-list>
-        </div >
-        `;
+        </div>
+      `;
     } else {
       headerHtml = `
-        < div class="header-left" >
+        <div class="header-left">
           <md-button variant="ghost" size="28" circle class="back-btn">
              <svg xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;fill:currentColor;" viewBox="0 0 24 24">
                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
              </svg>
           </md-button>
           <span>${this.i18n.t('chat_header')}</span>
-        </div >
+        </div>
         <div class="close-btn" id="closeBtn">✕</div>
       `;
       contentHtml = `
-        < div class="message-list" >
+        <div class="message-list">
           <div class="start-label">${this.i18n.t('start_conversation')}</div>
-        </div >
-        `;
+        </div>
+      `;
       footerHtml = `
-        < footer >
+        <footer>
           <md-input id="chatInput" placeholder="${this.i18n.t('input_placeholder')}" clear shape="pill"></md-input>
           <md-button class="send-btn" variant="primary" size="32" circle>
             <svg xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;fill:currentColor;" viewBox="0 0 24 24">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
             </svg>
           </md-button>
-        </footer >
-        `;
+        </footer>
+      `;
     }
 
     this.shadowRoot.innerHTML = `
-        < style > ${styles}</style >
+        <style>${styles}</style>
           <div class="window">
             <md-theme lumos ${this.isDark ? 'darkTheme' : ''}>
               <div class="view-container">
@@ -528,7 +528,8 @@ export class ChatWidget extends HTMLElement {
       // Clear current list content (except the "Start of conversation" label?)
       const list = this.shadowRoot.querySelector('.message-list');
       if (list) {
-        list.innerHTML = `< div style = "text-align:center; color:#999; font-size:12px; margin-top:20px;" > ${this.i18n.t('start_conversation')}</div > `;
+
+        list.innerHTML = `<div style="text-align:center; color:#999; font-size:12px; margin-top:20px;">${this.i18n.t('start_conversation')}</div>`;
 
         // Fix: Clear processedTids because we just wiped the UI. 
         // Any previously rendered realtime msg is gone, so we must allow history to re-render it.
