@@ -107,6 +107,19 @@
     }
 }
 
+/* Enforce strict centering and dimensions to match 'size' attribute and avoid eccentricity */
+.back-btn,
+.close-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+}
+
 /* ==========================================================================
    LAUNCHER (Floating Action Button)
    ========================================================================== */
