@@ -1,6 +1,8 @@
 import { WebexClient } from '../api/WebexClient';
 import { RealtimeClient } from '../api/RealtimeClient';
+import { RealtimeClient } from '../api/RealtimeClient';
 import { Localization } from '../i18n';
+import styles from './chat-widget.css?inline';
 
 export class ChatWidget extends HTMLElement {
   constructor() {
@@ -132,184 +134,14 @@ export class ChatWidget extends HTMLElement {
   // Let's replace render() completely to handle the FAB view.
 
   render() {
-    const style = `
-      :host {
-        display: block; 
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        z-index: 1000;
-        font-family: 'Inter', sans-serif;
-      }
-      /* Launcher FAB */
-      .launcher {
-        width: 56px;
-        height: 56px;
-        border-radius: 50%;
-        background-color: #0070d2;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: transform 0.2s;
-        color: white;
-      }
-      .launcher:hover {
-        transform: scale(1.05);
-      }
-      .launcher svg {
-        width: 28px;
-        height: 28px;
-        fill: currentColor;
-      }
-
-      /* Chat Window */
-      .window {
-        width: 360px;
-        height: 600px;
-        background: var(--md-background-color-primary, white);
-        box-shadow: 0 12px 24px rgba(0,0,0,0.15);
-        border-radius: 16px;
-        overflow: hidden;
-        border: 1px solid #e5e5e5;
-        display: flex;
-        flex-direction: column;
-        position: relative;
-      }
-      
-      md-theme {
-        display: block;
-        width: 100%;
-        height: 100%;
-      }
-      .view-container {
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        height: 100%;
-        position: absolute;
-        top: 0;
-        left: 0;
-        overflow: hidden;
-      }
-      /* ... Existing styles for header, content, footer ... */
-      header {
-        background: var(--md-background-color-secondary, #ffffff);
-        color: var(--md-text-color-primary, #121212);
-        padding: 16px;
-        font-weight: 600;
-        border-bottom: 1px solid #e5e5e5;
-        font-size: 16px;
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        height: 56px;
-        box-sizing: border-box;
-      }
-      .content {
-        flex: 1; 
-        overflow: hidden; 
-        display: flex;
-        flex-direction: column;
-        background: #f7f7f7;
-        position: relative;
-      }
-      .message-list {
-        flex: 1;
-        overflow-y: auto;
-        padding: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-      .msg-container {
-        display: flex;
-        flex-direction: column;
-        max-width: 80%;
-        margin-bottom: 4px; 
-      }
-      .msg-container.incoming { align-self: flex-start; }
-      .msg-container.outgoing { align-self: flex-end; align-items: flex-end; }
-
-      .bubble {
-        padding: 10px 14px;
-        border-radius: 12px;
-        line-height: 1.4;
-        font-size: 14px;
-        overflow-wrap: anywhere; 
-        word-break: break-word;
-        text-align: left;
-      }
-      .bubble.incoming {
-        background: #ffffff;
-        color: #121212;
-        border: 1px solid #e5e5e5;
-        border-bottom-left-radius: 4px;
-      }
-      .bubble.outgoing {
-        background: #0070d2;
-        color: white;
-        border-bottom-right-radius: 4px;
-      }
-      .timestamp {
-        font-size: 10px;
-        color: #999;
-        margin-top: 2px;
-        padding: 0 4px;
-      }
-      .typing-indicator {
-        display: flex;
-        align-items: center;
-        width: fit-content;
-        min-height: 24px;
-      }
-      footer {
-        padding: 12px;
-        background: white;
-        border-top: 1px solid #e5e5e5;
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        flex-shrink: 0;
-        min-height: 60px;
-        box-sizing: border-box;
-      }
-      md-input {
-        flex: 1;
-      }
-      md-list {
-         display: block;
-         height: 100%;
-         overflow-y: auto; 
-      }
-      .typing-indicator .dots {
-        display: flex;
-        gap: 4px;
-      }
-      .typing-indicator span {
-        animation: blink 1.4s infinite both;
-        font-size: 24px;
-        line-height: 10px;
-      }
-      .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
-      .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-      @keyframes blink {
-        0% { opacity: 0.2; }
-        20% { opacity: 1; }
-        100% { opacity: 0.2; }
-      }
-    `;
-
     if (!this.isOpen) {
       // Render Launcher
       this.shadowRoot.innerHTML = `
-            <style>${style}</style>
+            <style>${styles}</style>
             <md-theme lumos>
-                <div class="launcher-container" style="position:fixed; bottom:20px; right:20px; z-index:1000;">
+                <div class="launcher-container">
                     <md-button variant="primary" size="52" circle id="launcherBtn">
-                        <svg xmlns="http://www.w3.org/2000/svg" style="width:24px;height:24px;fill:currentColor;" viewBox="0 0 24 24">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                             <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
                         </svg>
                     </md-button>
@@ -328,31 +160,31 @@ export class ChatWidget extends HTMLElement {
     if (this.view === 'list') {
       headerHtml = `
           <span>${this.i18n.t('my_chats')}</span>
-          <div style="cursor:pointer;" id="closeBtn">✕</div>
+          <div class="close-btn" id="closeBtn">✕</div>
       `;
       const threadsHtml = this.threads.map(t => `
         <md-list-item slot="list-item" class="thread-item" data-id="${t.id}">
-          <div slot="start" style="background:#0070d2; color:white; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px;">
+          <div slot="start" class="thread-avatar">
             ${(t.title || 'C').charAt(0)}
           </div>
-          <div style="font-weight:600;">${t.title || this.i18n.t('default_title')}</div>
-          <div style="font-size:12px; color:#666;">ID: ${t.id.slice(0, 8)}...</div>
+          <div class="thread-title">${t.title || this.i18n.t('default_title')}</div>
+          <div class="thread-id">ID: ${t.id.slice(0, 8)}...</div>
         </md-list-item>
       `).join('');
 
       contentHtml = `
-        <div style="display:flex; flex-direction:column; height:100%;">
-          <div style="padding:16px;">
-             <md-button id="newChatBtn" variant="primary" style="width:100%">${this.i18n.t('start_new_chat')}</md-button>
+        <div class="view-container" style="position:relative">
+          <div class="content-padded">
+             <md-button id="newChatBtn" variant="primary" class="new-chat-btn">${this.i18n.t('start_new_chat')}</md-button>
           </div>
-          <md-list style="flex:1; overflow-y:auto;">
+          <md-list>
             ${threadsHtml}
           </md-list>
         </div>
       `;
     } else {
       headerHtml = `
-        <div style="display:flex; align-items:center; gap:8px;">
+        <div class="header-left">
           <md-button variant="ghost" size="28" circle class="back-btn">
              <svg xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;fill:currentColor;" viewBox="0 0 24 24">
                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
@@ -360,16 +192,16 @@ export class ChatWidget extends HTMLElement {
           </md-button>
           <span>${this.i18n.t('chat_header')}</span>
         </div>
-        <div style="cursor:pointer;" id="closeBtn">✕</div>
+        <div class="close-btn" id="closeBtn">✕</div>
       `;
       contentHtml = `
         <div class="message-list">
-           <div style="text-align:center; color:#999; font-size:12px; margin-top:20px;">${this.i18n.t('start_conversation')}</div>
+           <div class="start-label">${this.i18n.t('start_conversation')}</div>
         </div>
       `;
       footerHtml = `
-        <footer style="align-items:flex-start; display:flex; gap:8px;">
-          <md-input id="chatInput" placeholder="${this.i18n.t('input_placeholder')}" clear shape="pill" style="flex:1;"></md-input>
+        <footer>
+          <md-input id="chatInput" placeholder="${this.i18n.t('input_placeholder')}" clear shape="pill"></md-input>
           <md-button class="send-btn" variant="primary" size="32" circle>
             <svg xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;fill:currentColor;" viewBox="0 0 24 24">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -380,7 +212,7 @@ export class ChatWidget extends HTMLElement {
     }
 
     this.shadowRoot.innerHTML = `
-      <style>${style}</style>
+      <style>${styles}</style>
       <div class="window">
         <md-theme lumos>
             <div class="view-container">
@@ -784,18 +616,16 @@ export class ChatWidget extends HTMLElement {
     // 2. Rich Media (Forms)
     if (msg.media && Array.isArray(msg.media)) {
       // RENDER FORM (Both Incoming and Outgoing)
+      // RENDER FORM (Both Incoming and Outgoing)
       msg.media.forEach(m => {
         if (m.templateType === 'form' && m.payload) {
           const formContainer = document.createElement('div');
-          formContainer.style.marginTop = '10px';
-          formContainer.style.paddingTop = '10px';
-          formContainer.style.borderTop = '1px solid rgba(0,0,0,0.1)';
+          formContainer.className = 'form-container';
 
           if (m.payload.title) {
             const title = document.createElement('div');
             title.textContent = m.payload.title;
-            title.style.fontWeight = '600';
-            title.style.marginBottom = '8px';
+            title.className = 'form-title';
             formContainer.appendChild(title);
           }
 
@@ -804,117 +634,96 @@ export class ChatWidget extends HTMLElement {
           // Also disable if marked as _isAnswered (merged history)
           const isDisabled = (msg.isHistory === true) || isOutgoing || msg._isAnswered;
 
-          if (m.payload.fields && Array.isArray(m.payload.fields)) {
-            m.payload.fields.forEach(field => {
-              const fieldWrapper = document.createElement('div');
-              fieldWrapper.style.marginBottom = '8px';
+          (m.payload.fields || []).forEach(field => {
+            const inputWrapper = document.createElement('div');
+            inputWrapper.style.marginBottom = '8px'; // Keep simple layout style or move to CSS class 'input-wrapper'
 
-              const input = document.createElement('md-input');
-              input.label = field.label || '';
+            if (field.label) {
+              const label = document.createElement('label');
+              label.textContent = field.label;
+              label.style.display = 'block';
+              label.style.marginBottom = '4px';
+              label.style.fontSize = '12px';
+              label.style.fontWeight = '500';
+              inputWrapper.appendChild(label);
+            }
+
+            let input;
+            if (field.type === 'textarea') {
+              input = document.createElement('md-input'); // Use md-input for consitency if possible, or native textarea
+              input.multiline = true;
+            } else {
+              input = document.createElement('md-input');
               input.type = field.type || 'text';
-              input.name = field.name || field.label;
-              input.dataset.fieldDef = JSON.stringify(field);
-              input.style.width = '100%';
-              input.setAttribute('clear', ''); // Ensure attribute is present
-              input.setAttribute('shape', 'pill');
+            }
 
-              // Pre-fill value if present
-              if (field.value) {
-                input.value = field.value;
-              }
+            input.name = field.name;
+            input.value = field.value || '';
+            input.placeholder = field.description || '';
+            if (field.mandatory) input.required = true;
+            if (isDisabled) input.disabled = true;
 
-              if (isDisabled) {
-                input.disabled = true;
-              }
+            inputs.push(input);
+            inputWrapper.appendChild(input);
+            formContainer.appendChild(inputWrapper);
+          });
 
-              if (!isDisabled) {
-                input.addEventListener('keydown', (e) => {
-                  e.stopPropagation();
-                  if (e.key === 'Enter') submitBtn.click();
-                });
-              }
-
-              inputs.push(input);
-              fieldWrapper.appendChild(input);
-              formContainer.appendChild(fieldWrapper);
-            });
-
-            const btnContainer = document.createElement('div');
-            btnContainer.style.display = 'none'; // Hidden as requested (Enter to submit)
-            btnContainer.style.justifyContent = 'flex-end';
-            btnContainer.style.marginTop = '8px';
-
+          // Submit Button (Only if NOT disabled)
+          if (!isDisabled) {
             const submitBtn = document.createElement('md-button');
-            // Determine Label
-            let label = 'Submit';
-            if (isDisabled) {
-              if (msg._isAnswered || isOutgoing) label = 'Submitted';
-              else if (msg.isHistory) label = 'Form Closed';
-            }
-            submitBtn.textContent = label;
             submitBtn.variant = 'primary';
-            submitBtn.size = '32';
-            submitBtn.disabled = isDisabled;
+            submitBtn.size = '28';
+            submitBtn.textContent = this.i18n.t('submit');
+            submitBtn.style.marginTop = '8px';
 
-            if (!isDisabled) {
-              submitBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const filledFields = inputs.map(inp => {
-                  const def = JSON.parse(inp.dataset.fieldDef);
-                  return { ...def, value: inp.value };
-                });
+            submitBtn.addEventListener('click', () => {
+              // Collect Data
+              const formData = inputs.map(input => ({
+                name: input.name,
+                value: input.value,
+                label: input.previousElementSibling ? input.previousElementSibling.textContent : input.name
+              }));
 
-                const responseMedia = [{
-                  contentType: "template",
-                  templateType: "form",
-                  templateId: m.templateId,
-                  payload: {
-                    title: m.payload.title,
-                    fields: filledFields
-                  }
-                }];
+              // Validate Mandatory
+              const missing = inputs.filter(i => i.required && !i.value);
+              if (missing.length > 0) {
+                alert('Please fill required fields');
+                return;
+              }
 
-                this.sendMessage(null, responseMedia);
+              // Send Response
+              this.sendMessage(null, [{
+                templateType: 'form',
+                templateId: m.templateId,
+                payload: { fields: formData }
+              }]);
 
-                // Disable form locally
-                inputs.forEach(i => i.disabled = true);
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Submitted';
-
-                // Return focus to main chat
-                setTimeout(() => {
-                  const mainInput = this.shadowRoot.querySelector('#chatInput');
-                  if (mainInput) mainInput.focus();
-                }, 100);
-              });
-            }
-
-            btnContainer.appendChild(submitBtn);
-            formContainer.appendChild(btnContainer);
-          }
-          // Auto-focus first input ONLY if active incoming form
-          if (!isOutgoing && !isDisabled) {
-            setTimeout(() => {
-              const firstInput = formContainer.querySelector('md-input');
-              if (firstInput) firstInput.focus();
-            }, 100);
+              // Disable Form locally
+              inputs.forEach(i => i.disabled = true);
+              submitBtn.remove();
+              const sentLabel = document.createElement('div');
+              sentLabel.textContent = this.i18n.t('submitted');
+              sentLabel.style.color = '#0070d2';
+              sentLabel.style.fontSize = '12px';
+              sentLabel.style.marginTop = '8px';
+              formContainer.appendChild(sentLabel);
+            });
+            formContainer.appendChild(submitBtn);
+          } else {
+            // If disabled (e.g. history), show "Submitted" status if it was an answer or history?
+            // For now, just leave inputs disabled.
           }
 
           item.appendChild(formContainer);
         } else {
-          // === Rich Media Handling (Image, Video, Audio, File, Location) ===
-          const type = (m.type || m.contentType || m.mimeType || '').toLowerCase();
-          const url = m.url || m.contentUrl || m.fileUrl; // Handle various payload props
+          // RENDER OTHER MEDIA (Image, Video, File)
+          const type = m.contentType || m.mimeType || '';
+          const url = m.url || m.contentUrl;
 
           if (type.includes('image')) {
             const img = document.createElement('img');
             img.src = url;
-            img.alt = m.fileName || 'Image';
-            img.className = 'chat-media-image';
-            img.style.maxWidth = '200px';
-            img.style.borderRadius = '8px';
-            img.style.cursor = 'pointer';
-            img.onclick = () => window.open(url, '_blank');
+            img.className = 'chat-media-img';
             item.appendChild(img);
 
           } else if (type.includes('video')) {
@@ -922,8 +731,6 @@ export class ChatWidget extends HTMLElement {
             video.src = url;
             video.controls = true;
             video.className = 'chat-media-video';
-            video.style.maxWidth = '250px';
-            video.style.borderRadius = '8px';
             item.appendChild(video);
 
           } else if (type.includes('audio')) {
@@ -931,7 +738,6 @@ export class ChatWidget extends HTMLElement {
             audio.src = url;
             audio.controls = true;
             audio.className = 'chat-media-audio';
-            audio.style.marginTop = '5px';
             item.appendChild(audio);
 
           } else if (type === 'location' || (m.latitude && m.longitude) || (m.payload && m.payload.latitude)) {
@@ -941,9 +747,6 @@ export class ChatWidget extends HTMLElement {
             if (lat && lon) {
               const mapContainer = document.createElement('div');
               mapContainer.className = 'chat-media-map';
-              mapContainer.style.overflow = 'hidden';
-              mapContainer.style.borderRadius = '8px';
-              mapContainer.style.marginTop = '5px';
 
               const iframe = document.createElement('iframe');
               iframe.width = "250";
@@ -962,13 +765,6 @@ export class ChatWidget extends HTMLElement {
             // Generic File Attachment
             const fileContainer = document.createElement('div');
             fileContainer.className = 'chat-media-file';
-            fileContainer.style.display = 'flex';
-            fileContainer.style.alignItems = 'center';
-            fileContainer.style.gap = '8px';
-            fileContainer.style.background = 'rgba(0,0,0,0.05)';
-            fileContainer.style.padding = '8px';
-            fileContainer.style.borderRadius = '6px';
-            fileContainer.style.marginTop = '5px';
 
             const icon = document.createElement('span');
             icon.textContent = '📎'; // Simple icon
@@ -976,11 +772,9 @@ export class ChatWidget extends HTMLElement {
             const link = document.createElement('a');
             link.href = url;
             link.textContent = m.fileName || 'Download File';
-            link.target = '_blank';
-            link.download = m.fileName || 'file'; // Trigger download
-            link.style.textDecoration = 'none';
-            link.style.color = 'inherit';
-            link.style.fontWeight = '500';
+            link.target = '_blank'; // Open in new tab
+            link.className = 'file-link';
+            // Forcing download might require proxy if header missing, but 'download' attr helps
 
             fileContainer.appendChild(icon);
             fileContainer.appendChild(link);
@@ -994,24 +788,20 @@ export class ChatWidget extends HTMLElement {
     if (msg.quickReplies && msg.quickReplies.options && Array.isArray(msg.quickReplies.options)) {
       console.log('Rendering Quick Replies:', msg.quickReplies.options);
       const qrContainer = document.createElement('div');
-      qrContainer.style.display = 'flex';
-      qrContainer.style.flexWrap = 'wrap';
-      qrContainer.style.gap = '8px';
-      qrContainer.style.marginTop = '8px';
+      qrContainer.className = 'qr-container';
 
       msg.quickReplies.options.forEach(opt => {
         const btn = document.createElement('md-button');
         btn.variant = 'secondary';
         btn.size = '28';
         btn.textContent = opt.title;
-        btn.style.marginBottom = '4px';
+        btn.className = 'qr-button';
 
         // Helper: Highlight selected by making it unclickable but NOT 'disabled' (to keep color)
         const highlightSelected = (button) => {
           button.setAttribute('variant', 'primary');
           button.removeAttribute('disabled'); // Ensure not disabled
-          button.style.pointerEvents = 'none'; // Prevent clicks
-          // button.style.opacity = '1';
+          button.classList.add('qr-button-selected');
         };
 
         // Determine state based on history merge
