@@ -16,6 +16,7 @@ export class ChatWidget extends HTMLElement {
     this.isOpen = false; // Default to closed (launcher view)
     this.isDark = false;
     this._handleThemeChange = this._handleThemeChange.bind(this);
+    this._handleClickOutside = this._handleClickOutside.bind(this);
   }
 
   async connectedCallback() {
@@ -56,6 +57,10 @@ export class ChatWidget extends HTMLElement {
 
     this.render();
     this.init();
+
+    // Add click outside listener (use capture or bubble? 'click' bubbles from document)
+    // We attach to document.
+    document.addEventListener('click', this._handleClickOutside);
   }
 
   async init() {
@@ -100,11 +105,23 @@ export class ChatWidget extends HTMLElement {
   disconnectedCallback() {
     const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
     darkModeQuery.removeEventListener('change', this._handleThemeChange);
+    document.removeEventListener('click', this._handleClickOutside);
   }
 
   _handleThemeChange(e) {
     this.isDark = e.matches;
     this.render();
+  }
+
+  _handleClickOutside(e) {
+    // If widget is open, and click target is NOT this widget, close it.
+    if (this.isOpen) {
+      // e.target in document click will be the custom element <chat-widget> if clicked inside.
+      // If clicked outside, it will be some other element.
+      if (e.target !== this) {
+        this.toggle();
+      }
+    }
   }
 
   // ... (disconnectedCallback, handleMessage remain same)
@@ -178,7 +195,11 @@ export class ChatWidget extends HTMLElement {
     if (this.view === 'list') {
       headerHtml = `
           <span>${this.i18n.t('my_chats')}</span>
-          <div class="close-btn" id="closeBtn">✕</div>
+          <md-button variant="ghost" size="28" circle class="close-btn" id="closeBtn">
+            <svg xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;fill:currentColor;" viewBox="0 0 24 24">
+               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </md-button>
       `;
       const threadsHtml = this.threads.map(t => `
         <md-list-item slot="list-item" class="thread-item" data-id="${t.id}">
@@ -210,7 +231,11 @@ export class ChatWidget extends HTMLElement {
           </md-button>
           <span>${this.i18n.t('chat_header')}</span>
         </div>
-        <div class="close-btn" id="closeBtn">✕</div>
+        <md-button variant="ghost" size="28" circle class="close-btn" id="closeBtn">
+            <svg xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;fill:currentColor;" viewBox="0 0 24 24">
+               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+        </md-button>
       `;
       contentHtml = `
         <div class="message-list">

@@ -96,9 +96,13 @@
     }
 
     /* Fix ghost button hover in dark mode */
-    .back-btn:hover {
+    /* Target common ghost buttons (Back, Close) */
+    /* Use !important to override internal Shadow DOM styles if necessary, 
+       but standard md-button behavior with background override on host works best */
+    .back-btn:hover,
+    .close-btn:hover {
         background-color: rgba(255, 255, 255, 0.15) !important;
-        border-radius: 50%;
+        /* Remove explicit border-radius; rely on 'circle' attribute */
     }
 }
 
@@ -197,13 +201,7 @@ header {
 }
 
 .close-btn {
-    cursor: pointer;
-    opacity: 0.7;
-    transition: opacity 0.2s;
-}
-
-.close-btn:hover {
-    opacity: 1;
+    /* md-button handles cursor and layout */
 }
 
 /* ==========================================================================
