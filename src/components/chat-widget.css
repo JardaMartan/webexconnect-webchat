@@ -92,6 +92,13 @@
         --bubble-incoming-bg: #2c2c2c;
         --bubble-incoming-text: #ffffff;
         /* Outgoing usually stays brand color, ensure contrast is okay */
+        --bubble-outgoing-text: #ffffff;
+    }
+
+    /* Fix ghost button hover in dark mode */
+    .back-btn:hover {
+        background-color: rgba(255, 255, 255, 0.15) !important;
+        border-radius: 50%;
     }
 }
 
