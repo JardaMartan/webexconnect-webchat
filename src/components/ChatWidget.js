@@ -1,6 +1,6 @@
-
 import { WebexClient } from '../api/WebexClient';
 import { RealtimeClient } from '../api/RealtimeClient';
+import { Localization } from '../i18n';
 
 export class ChatWidget extends HTMLElement {
   constructor() {
@@ -22,6 +22,11 @@ export class ChatWidget extends HTMLElement {
     const clientKey = this.getAttribute('client-key') || '';
     const baseUrl = this.getAttribute('base-url') || '';
     const accessToken = this.getAttribute('access-token') || this.getAttribute('data-access-token') || '';
+
+    // Localization
+    const langAttr = this.getAttribute('lang') || navigator.language || 'en';
+    const lang = langAttr.split('-')[0]; // simple 'en', 'es' support
+    this.i18n = new Localization(lang);
 
     if (!appId || !clientKey || !baseUrl) {
       console.error('ChatWidget: Missing required attributes (app-id, client-key, base-url).');
@@ -322,7 +327,7 @@ export class ChatWidget extends HTMLElement {
 
     if (this.view === 'list') {
       headerHtml = `
-          <span>My Chats</span>
+          <span>${this.i18n.t('my_chats')}</span>
           <div style="cursor:pointer;" id="closeBtn">✕</div>
       `;
       const threadsHtml = this.threads.map(t => `
@@ -330,7 +335,7 @@ export class ChatWidget extends HTMLElement {
           <div slot="start" style="background:#0070d2; color:white; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px;">
             ${(t.title || 'C').charAt(0)}
           </div>
-          <div style="font-weight:600;">${t.title || 'Conversation'}</div>
+          <div style="font-weight:600;">${t.title || this.i18n.t('default_title')}</div>
           <div style="font-size:12px; color:#666;">ID: ${t.id.slice(0, 8)}...</div>
         </md-list-item>
       `).join('');
@@ -338,7 +343,7 @@ export class ChatWidget extends HTMLElement {
       contentHtml = `
         <div style="display:flex; flex-direction:column; height:100%;">
           <div style="padding:16px;">
-             <md-button id="newChatBtn" variant="primary" style="width:100%">Start New Chat</md-button>
+             <md-button id="newChatBtn" variant="primary" style="width:100%">${this.i18n.t('start_new_chat')}</md-button>
           </div>
           <md-list style="flex:1; overflow-y:auto;">
             ${threadsHtml}
@@ -353,18 +358,18 @@ export class ChatWidget extends HTMLElement {
                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
              </svg>
           </md-button>
-          <span>Chat</span>
+          <span>${this.i18n.t('chat_header')}</span>
         </div>
         <div style="cursor:pointer;" id="closeBtn">✕</div>
       `;
       contentHtml = `
         <div class="message-list">
-           <div style="text-align:center; color:#999; font-size:12px; margin-top:20px;">Start of conversation</div>
+           <div style="text-align:center; color:#999; font-size:12px; margin-top:20px;">${this.i18n.t('start_conversation')}</div>
         </div>
       `;
       footerHtml = `
         <footer style="align-items:flex-start; display:flex; gap:8px;">
-          <md-input id="chatInput" placeholder="Type a message..." clear shape="pill" style="flex:1;"></md-input>
+          <md-input id="chatInput" placeholder="${this.i18n.t('input_placeholder')}" clear shape="pill" style="flex:1;"></md-input>
           <md-button class="send-btn" variant="primary" size="32" circle>
             <svg xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;fill:currentColor;" viewBox="0 0 24 24">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -673,7 +678,7 @@ export class ChatWidget extends HTMLElement {
       // Clear current list content (except the "Start of conversation" label?)
       const list = this.shadowRoot.querySelector('.message-list');
       if (list) {
-        list.innerHTML = '<div style="text-align:center; color:#999; font-size:12px; margin-top:20px;">Start of conversation</div>';
+        list.innerHTML = `<div style="text-align:center; color:#999; font-size:12px; margin-top:20px;">${this.i18n.t('start_conversation')}</div>`;
 
         // Fix: Clear processedTids because we just wiped the UI. 
         // Any previously rendered realtime msg is gone, so we must allow history to re-render it.

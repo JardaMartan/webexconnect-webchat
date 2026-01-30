@@ -56,6 +56,7 @@ The widget is configured entirely via HTML attributes on the `<chat-widget>` cus
 | ---------------------- | --------------------------------------------------------------------------- | ------- |
 | `start-message`        | Text to auto-send when a new chat starts (e.g., "Hello").                   | `null`  |
 | `start-message-hidden` | If `true`, the start message is sent but hidden from the UI (silent start). | `false` |
+| `lang`                 | Language code for localization (`en`, `es`, `it`, `de`, `cs`, `sk`).        | `en`    |
 
 ## Usage
 
