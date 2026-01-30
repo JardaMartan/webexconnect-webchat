@@ -120,6 +120,12 @@
     box-sizing: border-box !important;
 }
 
+.back-btn svg,
+.close-btn svg {
+    pointer-events: none;
+    /* Prevent icon from capturing hover events, causing flicker */
+}
+
 /* ==========================================================================
    LAUNCHER (Floating Action Button)
    ========================================================================== */
