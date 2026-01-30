@@ -102,7 +102,8 @@
     .back-btn:hover,
     .close-btn:hover {
         background-color: rgba(255, 255, 255, 0.15) !important;
-        /* Remove explicit border-radius; rely on 'circle' attribute */
+        border-radius: 50%;
+        /* Force circular background on host element */
     }
 }
 
@@ -200,9 +201,7 @@ header {
     gap: 8px;
 }
 
-.close-btn {
-    /* md-button handles cursor and layout */
-}
+
 
 /* ==========================================================================
    MAIN CONTENT AREA
