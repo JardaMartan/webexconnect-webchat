@@ -62,6 +62,40 @@
 }
 
 /* ==========================================================================
+   🌑 DARK MODE SUPPORT
+   Automatically adapts to system preferences.
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+    :host {
+        /* Brand Colors */
+        --primary-color: #0070d2;
+        /* Keep brand color or adjust/dim if needed */
+        --primary-text-color: #ffffff;
+
+        /* Backgrounds */
+        --widget-bg: #1e1e1e;
+        /* Dark Grey */
+        --header-bg: #252525;
+        /* Slightly lighter header */
+        --content-bg: #121212;
+        /* Deep background */
+
+        /* Text Colors */
+        --text-primary: #ffffff;
+        --text-secondary: #cccccc;
+        --text-placeholder: #888888;
+
+        /* Borders */
+        --border-color: #333333;
+
+        /* Bubbles */
+        --bubble-incoming-bg: #2c2c2c;
+        --bubble-incoming-text: #ffffff;
+        /* Outgoing usually stays brand color, ensure contrast is okay */
+    }
+}
+
+/* ==========================================================================
    LAUNCHER (Floating Action Button)
    ========================================================================== */
 .launcher {
