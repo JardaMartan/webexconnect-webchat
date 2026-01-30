@@ -20,8 +20,8 @@ A custom, lightweight web chat widget designed for Webex Connect (IMIconnect). T
 
 1.  Clone the repository:
     ```bash
-    git clone <repository-url>
-    cd webchat-widget
+    git clone https://github.com/JardaMartan/webexconnect-webchat.git
+    cd webexconnect-webchat
     ```
 
 2.  Install dependencies:
