@@ -1,25 +1,81 @@
 :host {
+    /* ==========================================================================
+       🎨 CUSTOMIZABLE THEME CONFIGURATION
+       Modify these variables to match your brand identity.
+       ========================================================================== */
+
+    /* Brand Colors */
+    --primary-color: #0070d2;
+    /* Main action color (Launcher, Send button, Outgoing bubbles) */
+    --primary-text-color: #ffffff;
+    /* Text color on primary backgrounds */
+
+    /* Backgrounds */
+    --widget-bg: #ffffff;
+    /* Main window background */
+    --header-bg: #ffffff;
+    /* Header background */
+    --content-bg: #f7f7f7;
+    /* Message list background */
+
+    /* Text Colors */
+    --text-primary: #121212;
+    /* Main text */
+    --text-secondary: #666666;
+    /* Secondary text (timestamps, IDs) */
+    --text-placeholder: #999999;
+    /* Placeholder text */
+
+    /* Borders & Separators */
+    --border-color: #e5e5e5;
+
+    /* Message Bubbles */
+    --bubble-incoming-bg: #ffffff;
+    --bubble-incoming-text: #121212;
+    --bubble-outgoing-bg: var(--primary-color);
+    --bubble-outgoing-text: var(--primary-text-color);
+    --bubble-radius: 12px;
+
+    /* Widget Dimensions & Positioning */
+    --launcher-size: 56px;
+    --window-width: 360px;
+    --window-height: 600px;
+    --widget-border-radius: 16px;
+    --widget-bottom: 20px;
+    --widget-right: 20px;
+    --z-index: 1000;
+
+    /* Typography */
+    --font-family: 'Inter', sans-serif;
+
+    /* ==========================================================================
+       ⚠️ CORE LAYOUT & STRUCTURE
+       Do not modify the styles below unless you know what you are doing.
+       Changes here may break the widget's layout or functionality.
+       ========================================================================== */
     display: block;
     position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 1000;
-    font-family: 'Inter', sans-serif;
+    bottom: var(--widget-bottom);
+    right: var(--widget-right);
+    z-index: var(--z-index);
+    font-family: var(--font-family);
 }
 
-/* Launcher FAB */
+/* ==========================================================================
+   LAUNCHER (Floating Action Button)
+   ========================================================================== */
 .launcher {
-    width: 56px;
-    height: 56px;
+    width: var(--launcher-size);
+    height: var(--launcher-size);
     border-radius: 50%;
-    background-color: #0070d2;
+    background-color: var(--primary-color);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: transform 0.2s;
-    color: white;
+    color: var(--primary-text-color);
 }
 
 .launcher:hover {
@@ -33,24 +89,28 @@
 }
 
 .launcher-container {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 1000;
+    /* Position matches host, but container needed for internal alignment */
+    /* Structural - Do Not Change */
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-/* Chat Window */
+/* ==========================================================================
+   CHAT WINDOW CONTAINER
+   ========================================================================== */
 .window {
-    width: 360px;
-    height: 600px;
-    background: var(--md-background-color-primary, white);
+    width: var(--window-width);
+    height: var(--window-height);
+    background: var(--widget-bg);
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
-    border-radius: 16px;
+    border-radius: var(--widget-border-radius);
     overflow: hidden;
-    border: 1px solid #e5e5e5;
+    border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     position: relative;
+    /* Structural - Do Not Change */
 }
 
 md-theme {
@@ -60,6 +120,7 @@ md-theme {
 }
 
 .view-container {
+    /* Structural - Do Not Change */
     display: flex;
     flex-direction: column;
     width: 100%;
@@ -70,13 +131,15 @@ md-theme {
     overflow: hidden;
 }
 
-/* Header */
+/* ==========================================================================
+   HEADER
+   ========================================================================== */
 header {
-    background: var(--md-background-color-secondary, #ffffff);
-    color: var(--md-text-color-primary, #121212);
+    background: var(--header-bg);
+    color: var(--text-primary);
     padding: 16px;
     font-weight: 600;
-    border-bottom: 1px solid #e5e5e5;
+    border-bottom: 1px solid var(--border-color);
     font-size: 16px;
     flex-shrink: 0;
     display: flex;
@@ -94,15 +157,23 @@ header {
 
 .close-btn {
     cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
 }
 
-/* Content */
+.close-btn:hover {
+    opacity: 1;
+}
+
+/* ==========================================================================
+   MAIN CONTENT AREA
+   ========================================================================== */
 .content {
     flex: 1;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    background: #f7f7f7;
+    background: var(--content-bg);
     position: relative;
 }
 
@@ -125,12 +196,14 @@ header {
 
 .start-label {
     text-align: center;
-    color: #999;
+    color: var(--text-placeholder);
     font-size: 12px;
     margin-top: 20px;
 }
 
-/* Messages */
+/* ==========================================================================
+   MESSAGE BUBBLES
+   ========================================================================== */
 .msg-container {
     display: flex;
     flex-direction: column;
@@ -144,12 +217,14 @@ header {
 
 .msg-container.outgoing {
     align-self: flex-end;
+    /* Structural */
     align-items: flex-end;
+    /* Aligns content inside container to right */
 }
 
 .bubble {
     padding: 10px 14px;
-    border-radius: 12px;
+    border-radius: var(--bubble-radius);
     line-height: 1.4;
     font-size: 14px;
     overflow-wrap: anywhere;
@@ -158,21 +233,21 @@ header {
 }
 
 .bubble.incoming {
-    background: #ffffff;
-    color: #121212;
-    border: 1px solid #e5e5e5;
+    background: var(--bubble-incoming-bg);
+    color: var(--bubble-incoming-text);
+    border: 1px solid var(--border-color);
     border-bottom-left-radius: 4px;
 }
 
 .bubble.outgoing {
-    background: #0070d2;
-    color: white;
+    background: var(--bubble-outgoing-bg);
+    color: var(--bubble-outgoing-text);
     border-bottom-right-radius: 4px;
 }
 
 .timestamp {
     font-size: 10px;
-    color: #999;
+    color: var(--text-placeholder);
     margin-top: 2px;
     padding: 0 4px;
 }
@@ -184,11 +259,13 @@ header {
     min-height: 24px;
 }
 
-/* Footer */
+/* ==========================================================================
+   FOOTER (INPUT AREA)
+   ========================================================================== */
 footer {
     padding: 12px;
-    background: white;
-    border-top: 1px solid #e5e5e5;
+    background: var(--widget-bg);
+    border-top: 1px solid var(--border-color);
     display: flex;
     gap: 8px;
     align-items: center;
@@ -201,7 +278,9 @@ md-input {
     flex: 1;
 }
 
-/* List View */
+/* ==========================================================================
+   LIST VIEW (THREADS)
+   ========================================================================== */
 md-list {
     display: block;
     height: 100%;
@@ -209,8 +288,8 @@ md-list {
 }
 
 .thread-avatar {
-    background: #0070d2;
-    color: white;
+    background: var(--primary-color);
+    color: var(--primary-text-color);
     width: 32px;
     height: 32px;
     border-radius: 50%;
@@ -222,14 +301,17 @@ md-list {
 
 .thread-title {
     font-weight: 600;
+    color: var(--text-primary);
 }
 
 .thread-id {
     font-size: 12px;
-    color: #666;
+    color: var(--text-secondary);
 }
 
-/* Typing Animation */
+/* ==========================================================================
+   ANIMATIONS & INTERACTIVITY
+   ========================================================================== */
 .typing-indicator .dots {
     display: flex;
     gap: 4px;
@@ -263,7 +345,9 @@ md-list {
     }
 }
 
-/* Form Styles */
+/* ==========================================================================
+   FORMS & RICH MEDIA
+   ========================================================================== */
 .form-container {
     margin-top: 10px;
     padding-top: 10px;
@@ -275,29 +359,14 @@ md-list {
     margin-bottom: 8px;
 }
 
-/* Media Support */
-.chat-media-img {
+.chat-media-img,
+.chat-media-video,
+.chat-media-audio,
+.chat-media-map {
     max-width: 250px;
     border-radius: 8px;
     margin-top: 5px;
     display: block;
-}
-
-.chat-media-video {
-    max-width: 250px;
-    border-radius: 8px;
-    margin-top: 5px;
-}
-
-.chat-media-audio {
-    margin-top: 5px;
-    max-width: 250px;
-}
-
-.chat-media-map {
-    overflow: hidden;
-    border-radius: 8px;
-    margin-top: 5px;
 }
 
 .chat-media-file {
