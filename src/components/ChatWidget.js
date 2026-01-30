@@ -110,7 +110,16 @@ export class ChatWidget extends HTMLElement {
 
   _handleThemeChange(e) {
     this.isDark = e.matches;
-    this.render();
+    // Do NOT trigger full render, as it wipes value/state.
+    // Instead, update the attribute on md-theme directly.
+    const themeEl = this.shadowRoot.querySelector('md-theme');
+    if (themeEl) {
+      if (this.isDark) {
+        themeEl.setAttribute('darkTheme', '');
+      } else {
+        themeEl.removeAttribute('darkTheme');
+      }
+    }
   }
 
   _handleClickOutside(e) {

@@ -120,12 +120,24 @@
     box-sizing: border-box !important;
     pointer-events: auto !important;
     /* Ensure host captures events */
+    transition: none !important;
+    /* Prevent transition flickers */
 }
 
-/* Aggressively prevent ANY child from stealing hover state */
+/* Aggressively prevent ANY child or pseudo-element from stealing hover state */
 .back-btn *,
-.close-btn * {
+.close-btn *,
+.back-btn::before,
+.back-btn::after,
+.close-btn::before,
+.close-btn::after {
     pointer-events: none !important;
+}
+
+/* Ensure hover state is persistent */
+.back-btn:hover,
+.close-btn:hover {
+    transition: none !important;
 }
 
 /* ==========================================================================
