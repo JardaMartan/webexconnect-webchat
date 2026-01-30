@@ -46,6 +46,10 @@ The widget is configured entirely via HTML attributes on the `<chat-widget>` cus
 | `client-key`     | The "Secret Key" header value                    | Assets -> Apps -> Config|
 | `base-url`       | The RTMS API Endpoint                            | API Docs / Settings     |
 
+> **Note on Base URL**: The RTMS URL differs from your standard Webex Connect login URL. It often includes a region suffix (e.g., `-usor`).
+> *   **Standard URL**: `https://<tenant>.us.webexconnect.io`
+> *   **RTMS URL (Use this)**: `https://<tenant>-usor.us.webexconnect.io/rtmsAPI/api/v3`
+
 ### Optional Attributes
 
 | Attribute              | Description                                                                 | Default |
@@ -64,7 +68,7 @@ Open `index.html` and replace the placeholder values with your credentials:
     start-message-hidden="true" 
     app-id="YOUR_APP_ID" 
     client-key="YOUR_CLIENT_KEY"
-    base-url="https://<your-region>.webexconnect.io/rtmsAPI/api/v3">
+    base-url="https://<tenant>-usor.us.webexconnect.io/rtmsAPI/api/v3">
   </chat-widget>
 ```
 
