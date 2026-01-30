@@ -253,6 +253,12 @@ export class ChatWidget extends HTMLElement {
       `;
       footerHtml = `
         <footer>
+          <input type="file" id="fileInput" style="display: none;" />
+          <button class="icon-btn attachment-btn" id="attachmentBtn" title="Attach File">
+            <svg xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;fill:currentColor;" viewBox="0 0 24 24">
+               <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
+            </svg>
+          </button>
           <md-input id="chatInput" placeholder="${this.i18n.t('input_placeholder')}" clear shape="pill"></md-input>
           <md-button class="send-btn" variant="primary" size="32" circle>
             <svg xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;fill:currentColor;" viewBox="0 0 24 24">
@@ -296,6 +302,75 @@ export class ChatWidget extends HTMLElement {
       input.addEventListener('input-keydown', (e) => {
         if (e.detail.key === 'Enter') this.sendMessage();
       });
+
+      // Attachment Logic
+      const fileInput = this.shadowRoot.querySelector('#fileInput');
+      const attachmentBtn = this.shadowRoot.querySelector('#attachmentBtn');
+
+      if (attachmentBtn && fileInput) {
+        attachmentBtn.addEventListener('click', () => {
+          fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            this.handleFileUpload(e.target.files[0]);
+            // Reset input so same file can be selected again if needed
+            fileInput.value = '';
+          }
+        });
+      }
+    }
+  }
+
+  async handleFileUpload(file) {
+    if (!file) return;
+
+    // Optional: visual indicator that upload is starting?
+    // For now, optimistic UI or just wait.
+    console.log('Starting upload for:', file.name);
+
+    try {
+      const response = await WebexClient.uploadFile(file);
+      if (response && response.assetId) {
+        // Construct Media Payload
+        // Note: response might vary. IMI usually returns { assetId, url, ... }
+        // We need to verify what the actual response is. 
+        // Assuming response contains `url` which is public/SAS or we rely on `assetId`.
+        // Standard media payload for IMI:
+        /*
+        {
+           "media": [{
+               "type": "attachment",
+               "url": response.url, 
+               "fileName": file.name,
+               "size": file.size 
+           }]
+        }
+        */
+
+        const media = [{
+          type: 'attachment',
+          url: response.url || '', // Fallback or assetId usage
+          fileName: file.name,
+          size: file.size,
+          contentType: file.type // "image/png" etc
+        }];
+
+        // If it's an image, we might want to use type="image" to render it inline?
+        // ChatWidget.js render logic handles "image", "video", "audio".
+        // Let's infer type from MIME.
+        if (file.type.startsWith('image/')) media[0].type = 'image';
+        else if (file.type.startsWith('video/')) media[0].type = 'video';
+        else if (file.type.startsWith('audio/')) media[0].type = 'audio';
+
+        // Send Message
+        // Force skipUI=false to render it
+        await this.sendMessage(null, media);
+      }
+    } catch (e) {
+      console.error('File upload failed', e);
+      alert(this.i18n.t('upload_failed') || 'Upload failed');
     }
   }
   handleMessage(msg, isHistory = false) {

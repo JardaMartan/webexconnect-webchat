@@ -130,6 +130,18 @@
     }
 }
 
+.attachment-btn {
+    color: var(--text-secondary);
+    /* Discrete gray color */
+    transform: rotate(45deg);
+    /* Optional: Angle the paperclip */
+}
+
+.attachment-btn:hover {
+    color: var(--primary-color);
+    /* Highlight on hover */
+}
+
 
 /* ==========================================================================
    LAUNCHER (Floating Action Button)

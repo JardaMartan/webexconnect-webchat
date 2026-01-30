@@ -170,6 +170,43 @@ export const WebexClient = {
     return data.thread;
   },
 
+  uploadFile: async (file) => {
+    // Standard IMI/Webex Connect Asset Upload
+    // POST /apps/{appId}/assets
+    const url = `${CONFIG.baseUrl}/apps/${CONFIG.appId}/assets`;
+    const { headers } = await WebexClient.getAuthData();
+
+    // Create FormData
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', 'attachment'); // Optional, depending on API requirements
+
+    // Remove Content-Type header to let browser set boundary for FormData
+    const uploadHeaders = { ...headers };
+    delete uploadHeaders['Content-Type'];
+
+    console.log('Uploading file...', file.name);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: uploadHeaders,
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('Upload success:', data);
+      return data; // Should contain assetId, url, etc.
+    } catch (e) {
+      console.error('Upload error', e);
+      throw e;
+    }
+  },
+
   sendMessage: async (threadId, text, media = null, options = {}) => {
     const url = `${CONFIG.baseUrl}/${CONFIG.appId}/mo`;
     const body = {
