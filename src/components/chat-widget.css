@@ -118,12 +118,14 @@
     min-width: 28px !important;
     padding: 0 !important;
     box-sizing: border-box !important;
+    pointer-events: auto !important;
+    /* Ensure host captures events */
 }
 
-.back-btn svg,
-.close-btn svg {
-    pointer-events: none;
-    /* Prevent icon from capturing hover events, causing flicker */
+/* Aggressively prevent ANY child from stealing hover state */
+.back-btn *,
+.close-btn * {
+    pointer-events: none !important;
 }
 
 /* ==========================================================================
