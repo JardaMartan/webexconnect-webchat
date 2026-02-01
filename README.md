@@ -1,4 +1,4 @@
-# Webex App Chat Widget
+# Webex Connect Chat Widget
 
 A custom web component for embedding Webex App (IMI) chat functionality.
 
