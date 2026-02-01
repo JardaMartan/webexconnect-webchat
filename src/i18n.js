@@ -13,7 +13,9 @@ export const translations = {
         download_transcript: "Download Transcript",
         attachment: "Attach File",
         send: "Send Message",
-        open_chat: "Open Chat"
+        open_chat: "Open Chat",
+        today: "Today",
+        yesterday: "Yesterday"
     },
     es: {
         my_chats: "Mis Chats",
@@ -29,7 +31,9 @@ export const translations = {
         download_transcript: "Descargar Transcripción",
         attachment: "Adjuntar Archivo",
         send: "Enviar Mensaje",
-        open_chat: "Abrir Chat"
+        open_chat: "Abrir Chat",
+        today: "Hoy",
+        yesterday: "Ayer"
     },
     it: {
         my_chats: "Le Mie Chat",
@@ -45,7 +49,9 @@ export const translations = {
         download_transcript: "Scarica Trascrizione",
         attachment: "Allega File",
         send: "Invia Messaggio",
-        open_chat: "Apri Chat"
+        open_chat: "Apri Chat",
+        today: "Oggi",
+        yesterday: "Ieri"
     },
     de: {
         my_chats: "Meine Chats",
@@ -61,7 +67,9 @@ export const translations = {
         download_transcript: "Transkript herunterladen",
         attachment: "Datei anhängen",
         send: "Nachricht senden",
-        open_chat: "Chat öffnen"
+        open_chat: "Chat öffnen",
+        today: "Heute",
+        yesterday: "Gestern"
     },
     cs: {
         my_chats: "Moje Konverzace",
@@ -77,7 +85,9 @@ export const translations = {
         download_transcript: "Stáhnout přepis",
         attachment: "Přiložit soubor",
         send: "Odeslat zprávu",
-        open_chat: "Otevřít chat"
+        open_chat: "Otevřít chat",
+        today: "Dnes",
+        yesterday: "Včera"
     },
     sk: {
         my_chats: "Moje Konverzácie",
@@ -93,7 +103,9 @@ export const translations = {
         download_transcript: "Stiahnuť prepis",
         attachment: "Priložiť súbor",
         send: "Odoslať správu",
-        open_chat: "Otvoriť chat"
+        open_chat: "Otvoriť chat",
+        today: "Dnes",
+        yesterday: "Včera"
     },
     fr: {
         my_chats: "Mes discussions",

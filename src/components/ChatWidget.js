@@ -250,11 +250,7 @@ export class ChatWidget extends HTMLElement {
     }
   }
 
-  // ... (createNewChat, openChat, showList, sendMessage, addMessageToUI, handleMessage etc. - we need to preserve them. 
-  // Since I am replacing the whole class structure in the prompt instruction context, I need to be careful.
-  // Actually, I'll direct the tool to just replace specific methods or blocks if possible, but the render change is large.)
 
-  // Let's replace render() completely to handle the FAB view.
 
   render() {
     if (!this.isOpen) {
@@ -304,8 +300,15 @@ export class ChatWidget extends HTMLElement {
               <div class="thread-title" style="font-weight:600;">${t.title || this.i18n.t('default_title')}</div>
               <div class="thread-date" style="font-size:11px; color:#666;">${this.formatThreadDate(t.created_on || t.created)}</div>
             </div>
-            <div class="thread-preview" style="font-size:12px; color:#666; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">
-              ${t.last_message || 'No preview available'}
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div class="thread-preview" style="font-size:12px; color:#666; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">
+                ${t.last_message || 'No preview available'}
+              </div>
+              ${t.unread_count ? `
+                <div style="background-color: var(--md-sys-color-primary, #0070ad); color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold;">
+                  ${t.unread_count}
+                </div>
+              ` : ''}
             </div>
           </div>
         </md-list-item>
@@ -753,17 +756,25 @@ export class ChatWidget extends HTMLElement {
         if (!targetThread.messages) {
           targetThread.messages = [];
         }
-        // Avoid pushing duplicate objects if reference exists (though typically msg is new object)
-        // But check ID just in case to be safe, though deduplication logic above handles most.
-        // We'll trust dedupe above.
         targetThread.messages.push(msg);
 
-        // If this is the active thread, we don't need to do anything else specific for state,
-        // the addMessageToUI below handles the DOM.
+        // Update Last Message Preview
+        targetThread.last_message = text || (media && media.length ? 'Attachment' : '');
+
+        // Update Unread Count if not active
+        // Logic: If I am NOT viewing this specific thread OR I am not in chat view
+        const isReading = this.view === 'chat' && this.activeThreadId === targetThread.id;
+        if (!isReading && !isOutgoing) {
+          targetThread.unread_count = (targetThread.unread_count || 0) + 1;
+        }
+
+        // If in List View, refresh to show new preview/badge
+        if (this.view === 'list') {
+          this.showList();
+        }
+
       } else {
         // Thread not found in local store. 
-        // If it's the active thread (e.g. auto-start race), we should probably fetch or add it.
-        // But for now, just logging warning.
         console.warn('Received message for unknown thread ID:', threadIdToUpdate);
       }
       // --- END CORRECT STATE UPDATE ---
@@ -832,6 +843,12 @@ export class ChatWidget extends HTMLElement {
 
   async openChat(threadId) {
     this.activeThreadId = threadId;
+
+    // Clear unread count
+    const t = this.threads.find(th => th.id === threadId);
+    if (t) {
+      t.unread_count = 0;
+    }
 
     // Fix: Reset Input Visibility State immediately when opening a chat
     // This prevents state leakage from a previous thread (e.g. hidden input from an active form)
@@ -1602,9 +1619,9 @@ export class ChatWidget extends HTMLElement {
       }).format(date);
 
       if (isToday) {
-        return `Today, ${timeStr}`;
+        return `${this.i18n.t('today')}, ${timeStr}`;
       } else if (isYesterday) {
-        return `Yesterday, ${timeStr}`;
+        return `${this.i18n.t('yesterday')}, ${timeStr}`;
       } else {
         return new Intl.DateTimeFormat(navigator.language, {
           year: 'numeric',

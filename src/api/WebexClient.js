@@ -1,5 +1,3 @@
-// import { SignJWT } from 'jose'; // REMOVED
-
 // Helper to generate random string
 const generateRandomString = (length) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -9,10 +7,6 @@ const generateRandomString = (length) => {
   }
   return result;
 };
-
-// SERVICE_ID and SECRET removed as we fetch tokens now
-// const SERVICE_ID = ...
-// const SERVICE_SECRET = ...
 
 const CONFIG = {
   baseUrl: '',
@@ -401,6 +395,9 @@ export const WebexClient = {
     // CORRECTION: Reference trace chat1.har shows sendMessage uses BASE ClientID (no suffix).
     // MQTT Connect uses Suffix.
     // So we KEEP body.clientId as CONFIG.clientId (as set in line 181).
+
+    // Clean comments
+    // body.clientId = `${CONFIG.clientId}/at_${jwt}`; // REMOVED as per trace
 
     console.log('Message Payload:', JSON.stringify(body, null, 2));
 
