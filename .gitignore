@@ -34,3 +34,4 @@ index.html
 coverage/
 # Test scripts
 verify_token.js
+*.zip

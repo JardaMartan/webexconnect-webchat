@@ -72,7 +72,23 @@ export class ChatWidget extends HTMLElement {
     }
 
     // Localization
-    const lang = this.getAttribute('lang') || 'en';
+    let lang = this.getAttribute('lang');
+    if (!lang) {
+      // Auto-detect from browser if not explicitly set
+      lang = navigator.language || navigator.userLanguage || 'en';
+    }
+
+    // Normalize (e.g. 'cs-CZ' -> 'cs') if strict match not found
+    // We'll let the Localization class handle strictly or we do it here.
+    // The Localization class currently strictly checks translations[lang].
+    // Let's pass the raw detection and handle fallback in i18n or here.
+    // Better to handle here to ensure we pass a valid key to constructor if possible, 
+    // OR update Localization class to suffice.
+    // Let's strip region code here for simplicity as our i18n keys are 2-char.
+    if (lang.indexOf('-') > 0) {
+      lang = lang.split('-')[0];
+    }
+
     this.i18n = new Localization(lang);
     await this.i18n.setLanguage(lang);
 
@@ -192,6 +208,10 @@ export class ChatWidget extends HTMLElement {
   toggle() {
     this.isOpen = !this.isOpen;
     this.render();
+    // Fix: If opening back into an active chat, re-initialize it to load history
+    if (this.isOpen && this.view === 'chat' && this.activeThreadId) {
+      this.openChat(this.activeThreadId);
+    }
   }
 
   async startSilentChat(message) {
@@ -243,11 +263,11 @@ export class ChatWidget extends HTMLElement {
             <style>${styles}</style>
             <md-theme lumos ${this.isDark ? 'darkTheme' : ''}>
             <div class="launcher-container">
-              <md-button variant="primary" size="52" circle id="launcherBtn" class="launcher">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-                </svg>
-              </md-button>
+              <md-tooltip message="${this.i18n.t('open_chat')}" placement="left">
+                <md-button variant="primary" size="52" circle id="launcherBtn" class="launcher">
+                  <md-icon name="chat-active_24"></md-icon>
+                </md-button>
+              </md-tooltip>
             </div>
           </md-theme>
       `;
@@ -266,21 +286,28 @@ export class ChatWidget extends HTMLElement {
     if (this.view === 'list') {
       headerHtml = `
           <span>${this.i18n.t('my_chats')}</span>
-          <button class="icon-btn close-btn" id="closeBtn">
-            <svg xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;fill:currentColor;" viewBox="0 0 24 24">
-               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
-          </button>
+          <md-tooltip message="${this.i18n.t('close')}">
+            <button class="icon-btn close-btn" id="closeBtn">
+              <md-icon name="cancel_16"></md-icon>
+            </button>
+          </md-tooltip>
       `;
       const threadsHtml = this.threads
         .filter(t => t && t.id)
         .map(t => `
         <md-list-item slot="list-item" class="thread-item" data-id="${t.id}">
           <div slot="start" class="thread-avatar">
-            ${(t.title || 'C').charAt(0)}
+            ${(t.title && t.title !== 'Conversation' ? t.title.charAt(0) : t.id.charAt(0))}
           </div>
-          <div class="thread-title">${t.title || this.i18n.t('default_title')}</div>
-          <div class="thread-id">ID: ${t.id.slice(0, 8)}...</div>
+          <div class="thread-content" style="width: 100%;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div class="thread-title" style="font-weight:600;">${t.title || this.i18n.t('default_title')}</div>
+              <div class="thread-date" style="font-size:11px; color:#666;">${this.formatThreadDate(t.created_on || t.created)}</div>
+            </div>
+            <div class="thread-preview" style="font-size:12px; color:#666; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">
+              ${t.last_message || 'No preview available'}
+            </div>
+          </div>
         </md-list-item>
       `).join('');
 
@@ -297,20 +324,28 @@ export class ChatWidget extends HTMLElement {
     } else {
       headerHtml = `
         <div class="header-left">
-          <button class="icon-btn back-btn">
-             <svg xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;fill:currentColor;" viewBox="0 0 24 24">
-               <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-             </svg>
-          </button>
+          <md-tooltip message="${this.i18n.t('back')}">
+            <button class="icon-btn back-btn">
+               <md-icon name="arrow-left_16"></md-icon>
+            </button>
+          </md-tooltip>
+          <md-tooltip message="${this.i18n.t('download_transcript')}">
+            <button class="icon-btn download-btn" id="downloadBtn" style="margin-right: 8px;">
+               <md-icon name="download_16"></md-icon>
+            </button>
+          </md-tooltip>
           <span>${this.i18n.t('chat_header')}</span>
         </div>
-        <button class="icon-btn close-btn" id="closeBtn">
-          <svg xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;fill:currentColor;" viewBox="0 0 24 24">
-             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-          </svg>
-        </button>
+        <md-tooltip message="${this.i18n.t('close')}">
+          <button class="icon-btn close-btn" id="closeBtn">
+            <md-icon name="cancel_16"></md-icon>
+          </button>
+        </md-tooltip>
       `;
       contentHtml = `
+        <div id="loadingSpinner" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100;">
+          <md-spinner size="32"></md-spinner>
+        </div>
         <div class="message-list">
           <div class="start-label">${this.i18n.t('start_conversation')}</div>
         </div>
@@ -321,17 +356,17 @@ export class ChatWidget extends HTMLElement {
             <div id="uploadProgressBar" class="progress-bar"></div>
           </div>
           <input type="file" id="fileInput" style="display: none;" accept=".jpg,.jpeg,.gif,.png,.mp4,.mp3,.pdf,.docx,.doc,.xls,.xlsx,.csv,.ppt,.pptx,.wav" />
-          <button class="icon-btn attachment-btn" id="attachmentBtn" title="Attach File">
-            <svg xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;fill:currentColor;" viewBox="0 0 24 24">
-               <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
-            </svg>
-          </button>
+          <md-tooltip message="${this.i18n.t('attachment')}">
+            <button class="icon-btn attachment-btn" id="attachmentBtn">
+              <md-icon name="attachment_16"></md-icon>
+            </button>
+          </md-tooltip>
           <md-input id="chatInput" placeholder="${this.i18n.t('input_placeholder')}" shape="pill"></md-input>
-          <md-button class="send-btn" variant="primary" size="32" circle>
-            <svg xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;fill:currentColor;" viewBox="0 0 24 24">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-            </svg>
-          </md-button>
+          <md-tooltip message="${this.i18n.t('send')}">
+            <md-button class="send-btn" variant="primary" size="32" circle>
+              <md-icon name="send_16"></md-icon>
+            </md-button>
+          </md-tooltip>
         </footer>
       `;
     }
@@ -367,6 +402,11 @@ export class ChatWidget extends HTMLElement {
     } else {
       this.shadowRoot.querySelector('.back-btn').addEventListener('click', () => this.showList());
       this.shadowRoot.querySelector('.send-btn').addEventListener('click', () => this.sendMessage());
+      this.shadowRoot.querySelector('#downloadBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // Prevent closing the widget
+        this.downloadTranscript();
+      });
 
       const input = this.shadowRoot.querySelector('#chatInput');
       input.addEventListener('keydown', (e) => {
@@ -394,6 +434,191 @@ export class ChatWidget extends HTMLElement {
         });
       }
     }
+  }
+
+  downloadTranscript() {
+    const messageList = this.shadowRoot.querySelector('.message-list');
+    if (!messageList) return;
+
+    // 1. Clone the message list to avoid modifying the live view
+    const clone = messageList.cloneNode(true);
+
+    // 1b. CONVERT FORM DATA TO READ-ONLY PILLS
+    // User wants entered data to look like "pills" (similar to Quick Replies), not editable inputs.
+
+    // Select all relevant input types using specific selector for accuracy
+    const selector = 'input, textarea, select, md-input';
+    const originalInputs = messageList.querySelectorAll(selector);
+    const clonedInputs = clone.querySelectorAll(selector);
+
+    originalInputs.forEach((input, i) => {
+      const clonedInput = clonedInputs[i];
+      if (!clonedInput) return;
+
+      let value = '';
+      let shouldConvertToPill = false;
+
+      if (input.tagName === 'MD-INPUT') {
+        // Try attribute first (static), then property (dynamic)
+        value = input.getAttribute('value') || input.value || '';
+        shouldConvertToPill = true;
+      } else if (input.tagName === 'TEXTAREA') {
+        value = input.value;
+        shouldConvertToPill = true;
+      } else if (input.tagName === 'SELECT') {
+        if (input.selectedIndex >= 0) {
+          value = input.options[input.selectedIndex].text;
+        }
+        shouldConvertToPill = true;
+      } else if (input.tagName === 'INPUT') {
+        const excludedTypes = ['checkbox', 'radio', 'button', 'submit', 'reset', 'hidden'];
+        if (excludedTypes.includes(input.type)) {
+          // Keep checkboxes/radios as disabled inputs, verify state
+          if (input.checked) {
+            clonedInput.setAttribute('checked', 'checked');
+            clonedInput.checked = true;
+          } else {
+            clonedInput.removeAttribute('checked');
+            clonedInput.checked = false;
+          }
+          clonedInput.disabled = true;
+        } else {
+          value = input.value;
+          shouldConvertToPill = true;
+        }
+      }
+
+      if (shouldConvertToPill) {
+        const pill = document.createElement('div');
+        pill.className = 'transcript-pill';
+        pill.textContent = value;
+        clonedInput.replaceWith(pill);
+      }
+    });
+
+    // 2. Remove "Start Conversation" label or any non-message elements if needed
+    const startLabel = clone.querySelector('.start-label');
+    if (startLabel) startLabel.remove();
+
+    // 3. Serialize styles
+    // We use the imported styles string plus our injected progress styles (or just read from shadowRoot style tag)
+    const styleTag = this.shadowRoot.querySelector('style');
+    const css = styleTag ? styleTag.textContent : '';
+
+    // 4. Construct HTML
+    const html = `
+<!DOCTYPE html>
+<html lang="${this.i18n.locale}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${this.i18n.t('chat_header')} - Transcript</title>
+    <style>
+        /* Base Reset & Fonts */
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f7f7f7;
+            color: #121212;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        /* Inject Widget Styles (mapped to :root for variables) */
+        ${css.replace(/:host/g, ':root')}
+
+        /* CRITICAL OVERRIDES: Reset the fixed widget layout imposed by converting :host to :root */
+        :root, body {
+            position: relative !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: 100% !important;
+            bottom: auto !important;
+            right: auto !important;
+            top: auto !important;
+            left: auto !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background-color: #f7f7f7 !important;
+            display: block !important;
+            overflow: initial !important; /* Allow scrolling */
+        }
+        
+        /* Ensure message list expands */
+        .message-list {
+            padding: 20px !important;
+            overflow: visible !important;
+            height: auto !important;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* High Contrast for Forms & Interactions */
+        md-button, .qr-button {
+            border: 1px solid #ccc !important;
+            color: #333 !important;
+            opacity: 1 !important;
+            border-radius: 999px !important; /* PILL SHAPE */
+            padding: 10px 20px !important; /* LARGER PILL */
+            display: inline-block !important;
+            font-weight: 500 !important;
+        }
+        
+        md-button[variant="primary"], .qr-button-selected {
+            background-color: #0070d2 !important;
+            color: white !important;
+            border-color: #0070d2 !important;
+        }
+
+        /* Styling for Transcript Pills (formerly inputs) */
+        .transcript-pill {
+             display: inline-block;
+             padding: 10px 20px;
+             border: 1px solid #ccc;
+             border-radius: 999px; /* Pill shape */
+             background-color: #fff;
+             color: #333;
+             font-family: inherit;
+             font-size: 14px;
+             font-weight: 500;
+             margin-top: 4px;
+             box-sizing: border-box;
+             /* Ensure text wraps if super long, or let it grow? Inline-block grows. */
+             max-width: 100%;
+             word-wrap: break-word;
+        }
+
+        /* Make disabled inputs visible (legacy standard inputs like checkboxes) */
+        input:disabled, textarea:disabled, select:disabled {
+             opacity: 1 !important;
+             color: #333 !important;
+             background: transparent !important; /* Cleaner look for checkboxes */
+             border: 1px solid #999 !important;
+             cursor: default;
+        }
+    </style>
+</head>
+<body>
+    <div class="message-list">
+        ${clone.innerHTML}
+    </div>
+</body>
+</html>`;
+
+    // 5. Trigger Download
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat-transcript-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.html`;
+
+    // prevent click from bubbling to document (which closes the widget)
+    a.addEventListener('click', (e) => e.stopPropagation());
+
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   async handleFileUpload(file) {
@@ -543,7 +768,7 @@ export class ChatWidget extends HTMLElement {
       }
       // --- END CORRECT STATE UPDATE ---
 
-      if (this.view === 'chat' && this.threadId) {
+      if (this.view === 'chat' && this.activeThreadId) {
         this.addMessageToUI({
           ...msg, // Pass all props (crucial for _isAnswered, _selectedIdentifier from Merge)
           message: text,
@@ -554,6 +779,22 @@ export class ChatWidget extends HTMLElement {
           tid: tid
         });
       }
+    }
+  }
+
+  async handleDeleteThread(threadId) {
+    if (!confirm(this.i18n.t('confirm_delete') || 'Delete this conversation?')) return;
+
+    // Optimistic UI update
+    this.threads = this.threads.filter(t => t.id !== threadId);
+    this.showList(); // Re-render immediately
+
+    try {
+      await WebexClient.deleteThread(threadId);
+      console.log('Thread deleted:', threadId);
+    } catch (e) {
+      console.error('Failed to delete thread', e);
+      // Optional: Re-fetch or show error (UI is already updated so maybe silent fail is ok for now?)
     }
   }
 
@@ -590,7 +831,12 @@ export class ChatWidget extends HTMLElement {
   }
 
   async openChat(threadId) {
-    this.threadId = threadId;
+    this.activeThreadId = threadId;
+
+    // Fix: Reset Input Visibility State immediately when opening a chat
+    // This prevents state leakage from a previous thread (e.g. hidden input from an active form)
+    const footer = this.shadowRoot.querySelector('#mainFooter');
+    if (footer) footer.classList.remove('footer-hidden');
     this.view = 'chat';
     this.isOpen = true; // Ensure widget is open
     this.render();
@@ -602,12 +848,25 @@ export class ChatWidget extends HTMLElement {
     }, 100);
 
     // Fetch History
+    const spinner = this.shadowRoot.querySelector('#loadingSpinner');
+    if (spinner) spinner.style.display = 'block';
+
     try {
-      const messages = await WebexClient.fetchHistory(threadId);
-      // We need to render them old -> new. API usually returns new -> old or old -> new?
-      // Let's assume date sorting is needed or check HAR. 
-      // Sort old -> new
-      messages.sort((a, b) => new Date(a.created_on || 0) - new Date(b.created_on || 0));
+      let messages = await WebexClient.fetchHistory(threadId);
+      if (spinner) spinner.style.display = 'none';
+
+      // Fix: Ensure messages are sorted Chronologically (Oldest -> Newest)
+      // This is CRITICAL for the logic that pairs Questions with subsequent Answers.
+      // If the API returns 'Newest First', the loop would process the Answer before the Question, failing to pair them.
+      if (messages && messages.length > 0) {
+        messages.sort((a, b) => {
+          const tA = new Date(a.created || a.created_on || 0).getTime();
+          const tB = new Date(b.created || b.created_on || 0).getTime();
+          return tA - tB;
+        });
+      }
+
+      console.log('History loaded, count:', messages ? messages.length : 0);
 
       // Filter Hidden Start Message in History via Content/Positional
       const startHidden = this.hasAttribute('start-message-hidden') && this.getAttribute('start-message-hidden') !== 'false';
@@ -631,12 +890,13 @@ export class ChatWidget extends HTMLElement {
       // Iterate to find Answers, then look back for Questions
       messages.forEach((msg, index) => {
         // 1. Check if this is a FORM ANSWER (User sent, has Form payload)
-        const isFormAnswer = (msg.payload_type === 'sentByUser' || msg.outgoing) &&
+        // Fix: Check 'direction: incoming' (Server sets this for MO messages) to identify User Sent messages in history
+        const isFormAnswer = (msg.payload_type === 'sentByUser' || msg.outgoing || msg.direction === 'incoming') &&
           msg.media &&
           msg.media.some(m => m.templateType === 'form');
 
         // 2. Check if this is a QR ANSWER (User sent, has interactiveData + relatedTid)
-        const isQrAnswer = (msg.payload_type === 'sentByUser' || msg.outgoing) &&
+        const isQrAnswer = (msg.payload_type === 'sentByUser' || msg.outgoing || msg.direction === 'incoming') &&
           msg.interactiveData &&
           msg.relatedTid;
 
@@ -799,7 +1059,8 @@ export class ChatWidget extends HTMLElement {
     }
 
     // Check if the LAST message is an interactive one that blocks input
-    const isIncoming = !lastMsg.outgoing && lastMsg.payload_type !== 'sentByUser';
+    // Fix: If direction is 'incoming', it's FROM User TO Platform, so it is NOT 'incoming' to the widget (Bot Message)
+    const isIncoming = !lastMsg.outgoing && lastMsg.payload_type !== 'sentByUser' && lastMsg.direction !== 'incoming';
     const isForm = lastMsg.media && lastMsg.media.some(m => m.templateType === 'form');
     const isQr = lastMsg.quickReplies && lastMsg.quickReplies.options && lastMsg.quickReplies.options.length > 0;
 
@@ -847,10 +1108,49 @@ export class ChatWidget extends HTMLElement {
     }
   }
 
-  showList() {
+  async showList() {
     this.view = 'list';
     this.threadId = null;
     this.render();
+
+    // Lazy Fetch Previews for threads missing last_message
+    if (this.threads && this.threads.length > 0) {
+      this.threads.forEach(async (t) => {
+        if (!t.last_message) {
+          try {
+            // Fetch only 1 message to get the latest
+            // Assuming default sort is Newest First or we fetch 100 and pick last/first logic?
+            // API usually returns reverse chrono (Newest First) or Chrono (Oldest First).
+            // Let's assume fetchHistory returns limited set.
+            // CAUTION: fetchHistory sorts by date (Step 6629).
+
+            // To be efficient, we might need a separate 'fetchLastMessage' or just use fetchHistory and take last one.
+            const msgs = await WebexClient.fetchHistory(t.id);
+            if (msgs && msgs.length > 0) {
+              // History is sorted Chronologically (Oldest -> Newest) by our fix in fetchHistory call wrapper? 
+              // Wait, openChat does the sorting. fetchHistory just returns raw.
+              // Raw API usually returns list. Let's grab the LAST one in the array as latest.
+              const last = msgs[msgs.length - 1]; // Assuming Chrono
+
+              // However, if API returns Newest First (likely), then [0] is latest.
+              // Let's check timestamps to be sure.
+              msgs.sort((a, b) => new Date(b.created_on || 0) - new Date(a.created_on || 0)); // Descending
+              const latest = msgs[0];
+
+              t.last_message = latest.message || (latest.media ? '[Media]' : 'No content');
+
+              // Update DOM directly to avoid full re-render flickering
+              const previewEl = this.shadowRoot.querySelector(`.thread-item[data-id="${t.id}"] .thread-preview`);
+              if (previewEl) {
+                previewEl.textContent = t.last_message;
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to fetch preview for thread', t.id);
+          }
+        }
+      });
+    }
   }
 
   async sendMessage(overrideText = null, overrideMedia = null, options = {}, skipUI = false) {
@@ -865,7 +1165,7 @@ export class ChatWidget extends HTMLElement {
       }
     }
 
-    if ((!text && !media) || !this.threadId) {
+    if ((!text && !media) || !this.activeThreadId) {
       return;
     }
 
@@ -882,7 +1182,14 @@ export class ChatWidget extends HTMLElement {
         });
       }
 
-      const response = await WebexClient.sendMessage(this.threadId, text, media, options);
+      // Inject language preference into options
+      // The user requested to use "options" dict to add "language" key.
+      const finalOptions = {
+        language: this.i18n ? this.i18n.lang : (navigator.language || 'en'),
+        ...options
+      };
+
+      const response = await WebexClient.sendMessage(this.activeThreadId, text, media, finalOptions);
 
       // If we skipped UI (hidden start message), we no longer track TID for blacklist
       // as we use content matching in handleMessage. 
@@ -947,7 +1254,8 @@ export class ChatWidget extends HTMLElement {
           const inputs = [];
           // Disable if it's history (prevents re-submit) OR if it's an outgoing message (already submitted)
           // Also disable if marked as _isAnswered (merged history)
-          const isDisabled = (msg.isHistory === true) || isOutgoing || msg._isAnswered;
+          // FIX: Removed msg.isHistory === true to allow pending Forms in history to remain interactive
+          const isDisabled = isOutgoing || msg._isAnswered;
 
           (m.payload.fields || []).forEach(field => {
             const inputWrapper = document.createElement('div');
@@ -1183,8 +1491,9 @@ export class ChatWidget extends HTMLElement {
           } else {
             btn.disabled = true; // Grey out others
           }
-        } else if (msg.isHistory || isOutgoing) {
-          // Fallback for unmerged history (abandoned or old)
+        } else if (isOutgoing) {
+          // Only disable if it's strictly an outgoing message (bot shouldn't have buttons usually, but safe guard)
+          // WE REMOVED msg.isHistory check to allow pending QRs in history to remain interactive
           btn.disabled = true;
         } else {
           btn.addEventListener('click', (e) => {
@@ -1268,6 +1577,45 @@ export class ChatWidget extends HTMLElement {
       return filename || fallback || 'Download File';
     } catch (e) {
       return fallback || 'Download File';
+    }
+  }
+
+  formatThreadDate(timestamp) {
+    if (!timestamp) return '';
+    try {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const isToday = date.getDate() === now.getDate() &&
+        date.getMonth() === now.getMonth() &&
+        date.getFullYear() === now.getFullYear();
+
+      const isYesterday = date.getDate() === yesterday.getDate() &&
+        date.getMonth() === yesterday.getMonth() &&
+        date.getFullYear() === yesterday.getFullYear();
+
+      const timeStr = new Intl.DateTimeFormat(navigator.language, {
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(date);
+
+      if (isToday) {
+        return `Today, ${timeStr}`;
+      } else if (isYesterday) {
+        return `Yesterday, ${timeStr}`;
+      } else {
+        return new Intl.DateTimeFormat(navigator.language, {
+          year: 'numeric',
+          month: 'numeric',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }).format(date);
+      }
+    } catch (e) {
+      return '';
     }
   }
 

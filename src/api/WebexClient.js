@@ -230,6 +230,8 @@ export const WebexClient = {
     return data.threads || [];
   },
 
+
+
   createThread: async () => {
     const url = `${CONFIG.baseUrl}/apps/${CONFIG.appId}/threads`;
     const body = {

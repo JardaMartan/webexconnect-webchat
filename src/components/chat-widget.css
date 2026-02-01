@@ -133,8 +133,6 @@
 .attachment-btn {
     color: var(--text-secondary);
     /* Discrete gray color */
-    transform: rotate(45deg);
-    /* Optional: Angle the paperclip */
 }
 
 .attachment-btn:hover {
@@ -147,17 +145,16 @@
    LAUNCHER (Floating Action Button)
    ========================================================================== */
 .launcher {
-    width: var(--launcher-size);
-    height: var(--launcher-size);
-    border-radius: 50%;
-    background-color: var(--primary-color);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    /* Dimensions handled by md-button size attribute */
+    /* Background/Shadow handled by md-button variant */
+    /* Border-radius handled by md-button circle attribute */
+
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: transform 0.2s;
-    color: var(--primary-text-color);
+    /* color: var(--primary-text-color); -> md-button handles text color usually */
 }
 
 .launcher:hover {
