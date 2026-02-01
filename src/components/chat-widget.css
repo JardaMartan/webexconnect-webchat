@@ -451,10 +451,24 @@ md-list {
 .chat-media-video,
 .chat-media-audio,
 .chat-media-map {
-    max-width: 250px;
+    max-width: 100%;
     border-radius: 8px;
     margin-top: 5px;
     display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.chat-media-map {
+    overflow: hidden;
+}
+
+.chat-media-map iframe {
+    max-width: 100%;
+    width: 100%;
+    display: block;
+    border: 0;
+    /* Ensure no border on iframe */
 }
 
 .chat-media-file {
