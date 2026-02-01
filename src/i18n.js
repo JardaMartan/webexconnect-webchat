@@ -70,6 +70,14 @@ export class Localization {
         }
     }
 
+    async setLanguage(lang) {
+        this.lang = lang;
+        if (!translations[this.lang]) {
+            console.warn(`Language '${lang}' not supported, falling back to 'en'.`);
+            this.lang = 'en';
+        }
+    }
+
     t(key) {
         return translations[this.lang][key] || translations['en'][key] || key;
     }

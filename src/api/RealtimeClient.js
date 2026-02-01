@@ -16,42 +16,50 @@ export class RealtimeClient {
     }
 
     connect(creds) {
-        // Use dynamic host/port from credentials (provided by Register response)
-        const host = creds.host || 'CCBootcampSandboxccbcamp1023wbxai.msg-usor.us.webexconnect.io'; // Fallback
-        const port = creds.port || 443;
-        const protocol = 'wss';
-        const path = '/mqtt';
-
-        const url = `${protocol}://${host}:${port}${path}`;
-        console.log('Connecting to MQTT', url);
-        console.log('MQTT Creds:', { ...creds, password: '***' });
-
-        this.client = mqtt.connect(url, {
-            reconnectPeriod: 1000,
-            clientId: creds.clientId,
-            username: creds.username,
-            password: creds.password, // This is the secretKey (WN2Ghmg0)
-            protocolId: 'MQTT',
-            protocolVersion: 4
-        });
-
-        this.client.on('connect', () => {
-            console.log('MQTT Connected');
-            // Subscription should be called manually with correct params
-        });
-
-        this.client.on('message', (topic, message) => {
-            console.log('Received message:', topic, message.toString());
-            try {
-                const parsed = JSON.parse(message.toString());
-                this.callbacks.forEach(cb => cb(parsed));
-            } catch (e) {
-                console.error('Error parsing MQTT message', e);
+        return new Promise((resolve, reject) => {
+            // Use dynamic host/port from credentials (provided by Register response)
+            const host = creds.host;
+            if (!host) {
+                console.error('MQTT Host not configured!');
+                throw new Error('Missing MQTT Host config');
             }
-        });
 
-        this.client.on('error', (err) => {
-            console.error('MQTT Error', err);
+            // Note: Protocol might need to be secure (wss)
+            const url = `wss://${host}:443/mqtt`;
+            console.log('Connecting to MQTT', url);
+
+            // Mask password in logs
+            console.log('MQTT Creds:', { ...creds, password: '***' });
+
+            this.client = mqtt.connect(url, {
+                reconnectPeriod: 1000,
+                clientId: creds.clientId,
+                username: creds.username,
+                password: creds.password,
+                protocolId: 'MQTT',
+                protocolVersion: 4
+            });
+
+            this.client.on('connect', () => {
+                console.log('MQTT Connected');
+                resolve();
+            });
+
+            this.client.on('error', (err) => {
+                console.error('MQTT connection error', err);
+                // Don't reject, let it retry, but valid failure handling might use a timeout race.
+                // For now, resolving on connect is primary goal. 
+            });
+
+            this.client.on('message', (topic, message) => {
+                console.log('Received message:', topic, message.toString());
+                try {
+                    const parsed = JSON.parse(message.toString());
+                    this.callbacks.forEach(cb => cb(parsed));
+                } catch (e) {
+                    console.error('Error parsing MQTT message', e);
+                }
+            });
         });
     }
 

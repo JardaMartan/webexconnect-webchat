@@ -38,9 +38,11 @@
     </md-theme>
 
     <!-- Added start-message parameter for auto-start configuration -->
-    <!-- data-base-url parameterizes the API endpoint -->
-    <chat-widget start-message="hello" start-message-hidden="true" app-id="YOUR_APP_ID" client-key="YOUR_CLIENT_KEY"
-        base-url="YOUR_BASE_URL">
+    <!-- site-url: Your Webex Connect Site URL (e.g. https://<tenant>.<region>.webexconnect.io) -->
+    <!-- The widget derives API and MQTT URLs automatically from this. -->
+    <chat-widget start-message-hidden="true" app-id="YOUR_APP_ID" client-key="YOUR_CLIENT_KEY" site-url="YOUR_SITE_URL"
+        website-domain="YOUR_WEBSITE_DOMAIN" widget-id="YOUR_WIDGET_ID"
+        custom-profile-params="YOUR_CUSTOM_PROFILE_PARAMS">
     </chat-widget>
 
     <script type="module" src="/src/main.js"></script>

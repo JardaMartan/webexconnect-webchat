@@ -21,16 +21,60 @@ export class ChatWidget extends HTMLElement {
 
   async connectedCallback() {
     // Configuration from attributes
-    const startMessage = this.getAttribute('start-message') || null;
+    const startMsg = this.getAttribute('start-message') || null;
     const appId = this.getAttribute('app-id') || '';
     const clientKey = this.getAttribute('client-key') || '';
-    const baseUrl = this.getAttribute('base-url') || '';
     const accessToken = this.getAttribute('access-token') || this.getAttribute('data-access-token') || '';
+    const widgetId = this.getAttribute('widget-id') || this.getAttribute('data-bind') || '';
+    const websiteId = this.getAttribute('website-id') || '0'; // Default to 0 if unknown
+    const customProfileParams = this.getAttribute('custom-profile-params') || '';
+    const websiteDomain = this.getAttribute('website-domain') || '';
+
+    // Auto-derivation from site-url
+    const siteUrlAttr = this.getAttribute('site-url');
+    let baseUrl = this.getAttribute('base-url');
+    let mqttHost = this.getAttribute('mqtt-host');
+    let clientHost = websiteDomain; // Map website-domain to clientHost
+
+    if (siteUrlAttr) {
+      try {
+        const url = new URL(siteUrlAttr);
+        const host = url.hostname; // e.g., ccbootcampsandboxccbcamp1023wbxai.us.webexconnect.io
+        const parts = host.split('.');
+        const tenant = parts[0];
+        const region = parts[1]; // e.g. 'us' or 'eu'
+
+        // 1. Derive Base URL
+        if (region === 'us') {
+          // If the provided site-url doesn't already have '-usor', inject it for US region sandboxes/instances
+          // Pattern: tenant.us.webexconnect.io -> tenant-usor.us.webexconnect.io
+          // Check if 'tenant' part already ends with '-usor' (some users might provide full url)
+          const apiHost = tenant.endsWith('-usor') ? host : host.replace(tenant, `${tenant}-usor`);
+
+          if (!baseUrl) {
+            baseUrl = `https://${apiHost}/rtmsAPI/api/v3`;
+          }
+
+          if (!mqttHost) {
+            mqttHost = `${tenant}.msg-usor.${region}.webexconnect.io`;
+          }
+        } else {
+          // Fallback attempt or standard pattern if easier
+          // For now, try replacing first dot with .msg-usor. ? No.
+          // Just default to a pattern or log warning if not 'us'
+          // Assuming similar pattern: tenant.msg-{region}or.{region}... ?
+          // Safest: Use user provided example logic.
+          mqttHost = `${tenant}.msg-usor.${region}.webexconnect.io`;
+        }
+      } catch (e) {
+        console.error('Invalid site-url:', e);
+      }
+    }
 
     // Localization
-    const langAttr = this.getAttribute('lang') || navigator.language || 'en';
-    const lang = langAttr.split('-')[0]; // simple 'en', 'es' support
+    const lang = this.getAttribute('lang') || 'en';
     this.i18n = new Localization(lang);
+    await this.i18n.setLanguage(lang);
 
     if (!appId || !clientKey || !baseUrl) {
       console.error('ChatWidget: Missing required attributes (app-id, client-key, base-url).');
@@ -43,7 +87,12 @@ export class ChatWidget extends HTMLElement {
         baseUrl,
         appId,
         clientKey,
-        accessToken
+        accessToken,
+        widgetId,
+        clientHost,
+        websiteId,
+        customProfileParams,
+        mqttHost
       });
     } catch (error) {
       console.error('Failed to initialize WebexClient:', error);
@@ -66,14 +115,33 @@ export class ChatWidget extends HTMLElement {
   async init() {
     try {
       this.currentUserId = WebexClient.getUserId();
+
+      // 1. Connect to Realtime (MQTT) FIRST to ensure we don't miss welcome messages
+      try {
+        const mqttCreds = await WebexClient.getMqttCredentials();
+        await this.mqtt.connect(mqttCreds);
+
+        // Subscribe to User Topic
+        const appId = this.getAttribute('app-id');
+        this.mqtt.subscribeToUserTopic(appId, this.currentUserId);
+        this.mqtt.onMessage(this.handleMessage.bind(this));
+      } catch (mqttErr) {
+        console.error('Failed to connect to MQTT:', mqttErr);
+        // Continue anyway? Or stop? 
+        // If MQTT fails, chat won't work well (no incoming), but we can still fetch history.
+      }
+
+      // 2. Fetch Threads
       this.threads = await WebexClient.getThreads();
       console.log('Fetched Threads:', this.threads);
 
-      // Auto-Start Check
+      // 3. Auto-Start Check
       const startMsg = this.getAttribute('start-message');
       let autoStarted = false;
-      if (this.threads.length === 0 && startMsg) {
-        console.log('No existing threads and start-message found. Auto-starting...');
+
+      // REMOVED threads.length check to force auto-start for testing
+      if (startMsg) {
+        console.log('Start-message found. Auto-starting (forcing new thread)...');
         await this.startSilentChat(startMsg);
         autoStarted = true;
       }
@@ -86,15 +154,6 @@ export class ChatWidget extends HTMLElement {
           this.render();
         }
       }
-
-      const mqttCreds = await WebexClient.getMqttCredentials();
-      this.mqtt.connect(mqttCreds);
-
-      // Subscribe with correct topic
-      const appId = this.getAttribute('app-id');
-      this.mqtt.subscribeToUserTopic(appId, this.currentUserId);
-
-      this.mqtt.onMessage(this.handleMessage.bind(this));
     } catch (e) {
       console.error('Init error', e);
     }
@@ -123,13 +182,8 @@ export class ChatWidget extends HTMLElement {
   }
 
   _handleClickOutside(e) {
-    // If widget is open, and click target is NOT this widget, close it.
-    if (this.isOpen) {
-      // e.target in document click will be the custom element <chat-widget> if clicked inside.
-      // If clicked outside, it will be some other element.
-      if (e.target !== this) {
-        this.toggle();
-      }
+    if (this.isOpen && e.target !== this) {
+      this.toggle();
     }
   }
 
@@ -141,28 +195,33 @@ export class ChatWidget extends HTMLElement {
   }
 
   async startSilentChat(message) {
-    if (!this.isOpen) {
-      this.toggle(); // Open widget
-    }
+    // Force open
+    this.isOpen = true;
+    this.render();
 
     try {
       // 1. Create New Thread
+      // 1. Create New Thread
       const newThread = await WebexClient.createThread();
-      this.threads.unshift(newThread);
+      if (newThread && newThread.id) {
+        this.threads.unshift(newThread);
 
-      // Use standard openChat to ensure event listeners and focus work
-      await this.openChat(newThread.id);
+        // Use standard openChat to ensure event listeners and focus work
+        await this.openChat(newThread.id);
 
-      // 2. Send Message (Visible or Hidden based on config)
-      const hidden = this.hasAttribute('start-message-hidden') && this.getAttribute('start-message-hidden') !== 'false';
-      console.log('Auto-starting chat. Message:', message, 'Hidden:', hidden);
+        // 2. Send Message (Visible or Hidden based on config)
+        const hidden = this.hasAttribute('start-message-hidden') && this.getAttribute('start-message-hidden') !== 'false';
+        console.log('Auto-starting chat. Message:', message, 'Hidden:', hidden);
 
-      if (hidden) {
-        this._awaitingHiddenStart = true;
+        if (hidden) {
+          this._awaitingHiddenStart = true;
+        }
+
+        // Pass 'hidden' as skipUI param (4th arg)
+        await this.sendMessage(message, null, {}, hidden);
+      } else {
+        console.error('Failed to create thread for auto-start');
       }
-
-      // Pass 'hidden' as skipUI param (4th arg)
-      await this.sendMessage(message, null, {}, hidden);
       // No TID capture needed
 
 
@@ -192,7 +251,10 @@ export class ChatWidget extends HTMLElement {
             </div>
           </md-theme>
       `;
-      this.shadowRoot.querySelector('#launcherBtn').addEventListener('click', () => this.toggle());
+      this.shadowRoot.querySelector('#launcherBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggle();
+      });
       return;
     }
 
@@ -210,7 +272,9 @@ export class ChatWidget extends HTMLElement {
             </svg>
           </button>
       `;
-      const threadsHtml = this.threads.map(t => `
+      const threadsHtml = this.threads
+        .filter(t => t && t.id)
+        .map(t => `
         <md-list-item slot="list-item" class="thread-item" data-id="${t.id}">
           <div slot="start" class="thread-avatar">
             ${(t.title || 'C').charAt(0)}
@@ -252,14 +316,17 @@ export class ChatWidget extends HTMLElement {
         </div>
       `;
       footerHtml = `
-        <footer>
-          <input type="file" id="fileInput" style="display: none;" />
+        <footer id="mainFooter">
+          <div id="uploadProgressContainer" class="progress-container" style="display: none;">
+            <div id="uploadProgressBar" class="progress-bar"></div>
+          </div>
+          <input type="file" id="fileInput" style="display: none;" accept=".jpg,.jpeg,.gif,.png,.mp4,.mp3,.pdf,.docx,.doc,.xls,.xlsx,.csv,.ppt,.pptx,.wav" />
           <button class="icon-btn attachment-btn" id="attachmentBtn" title="Attach File">
             <svg xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;fill:currentColor;" viewBox="0 0 24 24">
                <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
             </svg>
           </button>
-          <md-input id="chatInput" placeholder="${this.i18n.t('input_placeholder')}" clear shape="pill"></md-input>
+          <md-input id="chatInput" placeholder="${this.i18n.t('input_placeholder')}" shape="pill"></md-input>
           <md-button class="send-btn" variant="primary" size="32" circle>
             <svg xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;fill:currentColor;" viewBox="0 0 24 24">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -269,8 +336,14 @@ export class ChatWidget extends HTMLElement {
       `;
     }
 
+    const progressStyles = `
+      #mainFooter { position: relative; }
+      .progress-container { width: 100%; height: 4px; background-color: #f0f0f0; position: absolute; top: 0; left: 0; z-index: 10; }
+      .progress-bar { width: 0%; height: 100%; background-color: var(--md-sys-color-primary, #0070ad); transition: width 0.1s linear; }
+    `;
+
     this.shadowRoot.innerHTML = `
-        <style>${styles}</style>
+        <style>${styles} ${progressStyles}</style>
           <div class="window">
             <md-theme lumos ${this.isDark ? 'darkTheme' : ''}>
               <div class="view-container">
@@ -326,46 +399,41 @@ export class ChatWidget extends HTMLElement {
   async handleFileUpload(file) {
     if (!file) return;
 
-    // Optional: visual indicator that upload is starting?
-    // For now, optimistic UI or just wait.
+    // Show Progress Bar
+    const progressContainer = this.shadowRoot.querySelector('#uploadProgressContainer');
+    const progressBar = this.shadowRoot.querySelector('#uploadProgressBar');
+    if (progressContainer) progressContainer.style.display = 'block';
+    if (progressBar) progressBar.style.width = '0%';
+
     console.log('Starting upload for:', file.name);
 
     try {
-      const response = await WebexClient.uploadFile(file);
-      if (response && response.assetId) {
+      const response = await WebexClient.uploadFile(file, (percent) => {
+        if (progressBar) progressBar.style.width = `${percent}%`;
+      });
+      console.log('Upload response received in handleFileUpload:', response);
+
+      // Hide Progress Bar on completion
+      if (progressContainer) progressContainer.style.display = 'none';
+
+      // Valid response has code === 0 and message (URL).
+      if (response && response.message) {
         // Construct Media Payload
-        // Note: response might vary. IMI usually returns { assetId, url, ... }
-        // We need to verify what the actual response is. 
-        // Assuming response contains `url` which is public/SAS or we rely on `assetId`.
-        // Standard media payload for IMI:
-        /*
-        {
-           "media": [{
-               "type": "attachment",
-               "url": response.url, 
-               "fileName": file.name,
-               "size": file.size 
-           }]
-        }
-        */
+        // Mapping as per confirmation: 
+        // Key for URL is derived from response.description (e.g. "file")
+        // contentType is also response.description
+
+        const typeKey = response.description || 'file';
 
         const media = [{
-          type: 'attachment',
-          url: response.url || '', // Fallback or assetId usage
-          fileName: file.name,
-          size: file.size,
-          contentType: file.type // "image/png" etc
+          contentType: typeKey,
+          [typeKey]: response.message
         }];
 
-        // If it's an image, we might want to use type="image" to render it inline?
-        // ChatWidget.js render logic handles "image", "video", "audio".
-        // Let's infer type from MIME.
-        if (file.type.startsWith('image/')) media[0].type = 'image';
-        else if (file.type.startsWith('video/')) media[0].type = 'video';
-        else if (file.type.startsWith('audio/')) media[0].type = 'audio';
+        console.log('Attempting to send attachment message:', media);
+        console.log('Current Thread ID:', this.threadId);
 
         // Send Message
-        // Force skipUI=false to render it
         await this.sendMessage(null, media);
       }
     } catch (e) {
@@ -428,23 +496,10 @@ export class ChatWidget extends HTMLElement {
       }
 
       // If it's outgoing and NOT history, skip it (echo prevention)
-      if (isOutgoing && !isHistory) {
-        // If we skipped UI logic in sendMessage, we shouldn't skip here?
-        // Actually, existing logic says "Skip ALL outgoing echoes".
-        // This implies optimistic UI is ALWAYS used or we don't care about confirmation.
-        // BUT for auto-start, we might NOT have optimistic UI if we used skipUI param.
-        // Checking existing sendMessage... 
-        // "if (text && !media && !skipUI) { addMessageToUI... }"
-        // So if skipUI is true, we DO NOT have it on UI. 
-        // So we MUST allow it to pass here?
-        // The previous logic was: if (hidden) _suppressNextOutgoing = true;
-
-        // Fix: If it's outgoing, we generally skip echo. 
-        // UNLESS it's the start message that we WANTED to show (start-message-hidden=false) but skipped generic UI?
-        // No, if start-message-hidden=false, then hidden=false, so skipUI=false. So optimistic UI IS added.
-        // So we can safely skip echo.
-
-        console.log('Skipping outgoing message echo:', text || 'media');
+      // BUT: We do not employ optimistic UI for Media messages (due to complexity).
+      // So we MUST allow outgoing media messages to pass through here to be rendered upon receipt.
+      if (isOutgoing && !isHistory && (!media || media.length === 0)) {
+        console.log('Skipping outgoing message echo (Text-only):', text);
         return;
       }
 
@@ -460,6 +515,33 @@ export class ChatWidget extends HTMLElement {
         }
         this.processedTids.add(tid);
       }
+
+      // --- CORRECT STATE UPDATE ---
+      const threadIdToUpdate = (msg.thread && msg.thread.id) || this.activeThreadId;
+      let targetThread = null;
+
+      if (threadIdToUpdate) {
+        targetThread = this.threads.find(t => t.id === threadIdToUpdate);
+      }
+
+      if (targetThread) {
+        if (!targetThread.messages) {
+          targetThread.messages = [];
+        }
+        // Avoid pushing duplicate objects if reference exists (though typically msg is new object)
+        // But check ID just in case to be safe, though deduplication logic above handles most.
+        // We'll trust dedupe above.
+        targetThread.messages.push(msg);
+
+        // If this is the active thread, we don't need to do anything else specific for state,
+        // the addMessageToUI below handles the DOM.
+      } else {
+        // Thread not found in local store. 
+        // If it's the active thread (e.g. auto-start race), we should probably fetch or add it.
+        // But for now, just logging warning.
+        console.warn('Received message for unknown thread ID:', threadIdToUpdate);
+      }
+      // --- END CORRECT STATE UPDATE ---
 
       if (this.view === 'chat' && this.threadId) {
         this.addMessageToUI({
@@ -478,24 +560,29 @@ export class ChatWidget extends HTMLElement {
   async createNewChat() {
     try {
       const newThread = await WebexClient.createThread();
-      this.threads.unshift(newThread);
 
-      // Await openChat to ensure history is loaded/cleared before we send new message
-      await this.openChat(newThread.id);
+      if (newThread && newThread.id) {
+        this.threads.unshift(newThread);
 
-      // Check for automated start message
-      const startMsg = this.getAttribute('start-message');
-      const hidden = this.hasAttribute('start-message-hidden') && this.getAttribute('start-message-hidden') !== 'false';
+        // Await openChat to ensure history is loaded/cleared before we send new message
+        await this.openChat(newThread.id);
 
-      if (startMsg) {
-        console.log('Auto-sending start message (New Chat). Hidden:', hidden);
+        // Check for automated start message
+        const startMsg = this.getAttribute('start-message');
+        const hidden = this.hasAttribute('start-message-hidden') && this.getAttribute('start-message-hidden') !== 'false';
 
-        if (hidden) {
-          this._awaitingHiddenStart = true;
+        if (startMsg) {
+          console.log('Auto-sending start message (New Chat). Hidden:', hidden);
+
+          if (hidden) {
+            this._awaitingHiddenStart = true;
+          }
+
+          // Send immediately
+          await this.sendMessage(startMsg, null, {}, hidden);
         }
-
-        // Send immediately
-        await this.sendMessage(startMsg, null, {}, hidden);
+      } else {
+        console.error('Failed to create thread');
       }
     } catch (e) {
       console.error('Failed to create thread', e);
@@ -505,6 +592,7 @@ export class ChatWidget extends HTMLElement {
   async openChat(threadId) {
     this.threadId = threadId;
     this.view = 'chat';
+    this.isOpen = true; // Ensure widget is open
     this.render();
 
     // Auto-focus immediately
@@ -558,8 +646,8 @@ export class ChatWidget extends HTMLElement {
               // Look BACKWARDS for the nearest Question with this templateId
               for (let i = index - 1; i >= 0; i--) {
                 const diffMsg = messages[i];
-                // Must be sentToUser (Question) and have same templateId and NOT Answered yet
-                const isQuestion = diffMsg.payload_type === 'sentToUser' &&
+                // Must be sentToUser (Question) or simply Incoming, and have same templateId and NOT Answered yet
+                const isQuestion = (diffMsg.payload_type === 'sentToUser' || !diffMsg.outgoing) &&
                   diffMsg.media &&
                   diffMsg.media.some(qm => qm.templateId === m.templateId) &&
                   !diffMsg._isAnswered;
@@ -665,6 +753,98 @@ export class ChatWidget extends HTMLElement {
     } catch (e) {
       console.error('History load error', e);
     }
+
+    // Update Input Visibility based on last message
+    this._updateInputVisibility();
+  }
+
+  _updateInputVisibility() {
+    const footer = this.shadowRoot.querySelector('#mainFooter');
+    if (!footer) return;
+
+    let thread = null;
+
+    if (this.activeThreadId) {
+      console.log('Visibility: Has activeThreadId', this.activeThreadId);
+      thread = this.threads.find(t => t.id === this.activeThreadId);
+    }
+
+    // Fallback: If no activeThreadId is set (auto-start quirk), try to find the thread that has the MOST RECENT message
+    // This assumes the user is "looking" at the active conversation even if state is slightly desynced
+    if (!thread && this.threads.length > 0) {
+      // Sort threads by last message time? Or just pick the first one (most recent usually unshifted)
+      thread = this.threads[0];
+      console.log('Visibility: Fallback to first thread:', thread.id, 'Messages:', thread.messages ? thread.messages.length : 'undefined');
+    }
+
+    if (!thread || !thread.messages || thread.messages.length === 0) {
+      // console.log('Visibility: Thread invalid or empty, showing footer');
+      footer.classList.remove('footer-hidden');
+      return;
+    }
+
+    // Scan the last few messages (reverse order) to find the latest "meaningful" message
+    let lastMsg = null;
+    for (let i = thread.messages.length - 1; i >= 0; i--) {
+      const m = thread.messages[i];
+      if (!m._skipRendering) {
+        lastMsg = m;
+        break;
+      }
+    }
+
+    if (!lastMsg) {
+      footer.classList.remove('footer-hidden');
+      return;
+    }
+
+    // Check if the LAST message is an interactive one that blocks input
+    const isIncoming = !lastMsg.outgoing && lastMsg.payload_type !== 'sentByUser';
+    const isForm = lastMsg.media && lastMsg.media.some(m => m.templateType === 'form');
+    const isQr = lastMsg.quickReplies && lastMsg.quickReplies.options && lastMsg.quickReplies.options.length > 0;
+
+
+
+    console.log('Visibility Check:', {
+      tid: lastMsg.tid,
+      isIncoming,
+      isForm,
+      isQr,
+      isAnswered: lastMsg._isAnswered
+    });
+
+    console.log('Visibility Check:', {
+      tid: lastMsg.tid,
+      isIncoming,
+      isForm,
+      isQr,
+      isAnswered: lastMsg._isAnswered,
+      footerFound: !!footer,
+      lastMsgSub: JSON.stringify(lastMsg).substring(0, 100)
+    });
+
+
+    const chatInput = this.shadowRoot.querySelector('#chatInput');
+    const attachmentBtn = this.shadowRoot.querySelector('#attachmentBtn');
+
+    if (isIncoming && (isForm || isQr) && !lastMsg._isAnswered) {
+      // console.log('Visibility: Hiding footer (Waiting for input)');
+      footer.classList.add('footer-hidden');
+      if (chatInput) chatInput.disabled = true;
+      if (attachmentBtn) attachmentBtn.disabled = true;
+    } else {
+      // console.log('Visibility: Showing footer');
+      const wasHidden = footer.classList.contains('footer-hidden');
+
+      footer.classList.remove('footer-hidden');
+      if (chatInput) chatInput.disabled = false;
+      if (attachmentBtn) attachmentBtn.disabled = false;
+
+      // Auto-Focus if it just reappeared
+      if (wasHidden && chatInput) {
+        setTimeout(() => chatInput.focus(), 100);
+      }
+    }
   }
 
   showList() {
@@ -732,6 +912,13 @@ export class ChatWidget extends HTMLElement {
 
     // Check if media contains a form (to suppress duplicate text echo)
     const hasForm = msg.media && msg.media.some(m => m.templateType === 'form');
+
+    // FIX: Hide Outgoing Form Answers (User submitted forms)
+    // The content is effectively "merged" into the original form (which becomes disabled).
+    if (isOutgoing && hasForm) {
+      console.log('Skipping outgoing form answer bubble:', msg.tid);
+      return;
+    }
 
     // 1. Text Content
     // Only render text if NO form, OR if it's not just an echo (hard to detect, so strictly prioritizing Form)
@@ -842,6 +1029,24 @@ export class ChatWidget extends HTMLElement {
             // Disable Form locally
             inputs.forEach(i => i.disabled = true);
 
+            // Fix: Update the original message in the store, not just the local copy
+            // The `msg` object here is a copy passed to addMessageToUI
+            if (this.threads) {
+              for (const t of this.threads) {
+                if (t.messages) {
+                  const originalMsg = t.messages.find(m => m.tid === msg.tid);
+                  if (originalMsg) {
+                    originalMsg._isAnswered = true;
+                    break;
+                  }
+                }
+              }
+            } else {
+              // Fallback if strictly active thread needed (less robust)
+              msg._isAnswered = true;
+            }
+
+            this._updateInputVisibility();
 
 
             // Refocus Main Chat Input
@@ -865,6 +1070,11 @@ export class ChatWidget extends HTMLElement {
           // RENDER OTHER MEDIA (Image, Video, File)
           const type = m.contentType || m.mimeType || '';
           let url = m.url || m.contentUrl || (m.payload && m.payload.url);
+
+          // Handle dynamic key mapping from upload response (e.g. m.file, m.image)
+          if (!url && type && m[type]) {
+            url = m[type];
+          }
 
           if (!url && m.file) {
             if (typeof m.file === 'string') {
@@ -894,7 +1104,10 @@ export class ChatWidget extends HTMLElement {
             audio.className = 'chat-media-audio';
             item.appendChild(audio);
 
-          } else if (type === 'location' || (m.latitude && m.longitude) || (m.payload && m.payload.latitude)) {
+          }
+
+
+          if (type === 'location' || (m.latitude && m.longitude) || (m.payload && m.payload.latitude)) {
             // Location Map
             const lat = m.latitude || (m.payload && m.payload.latitude);
             const lon = m.longitude || (m.payload && m.payload.longitude);
@@ -920,12 +1133,9 @@ export class ChatWidget extends HTMLElement {
             const fileContainer = document.createElement('div');
             fileContainer.className = 'chat-media-file';
 
-            const icon = document.createElement('span');
-            icon.textContent = '📎'; // Simple icon
-
             const link = document.createElement('a');
             link.href = url || '#';
-            link.textContent = m.fileName || 'Download File';
+            link.textContent = '📄 ' + this._deriveFileName(url, m.fileName || m.filename);
             link.target = '_blank'; // Open in new tab
             link.className = 'file-link';
 
@@ -938,9 +1148,6 @@ export class ChatWidget extends HTMLElement {
               }
             });
 
-
-
-            fileContainer.appendChild(icon);
             fileContainer.appendChild(link);
             item.appendChild(fileContainer);
           }
@@ -1035,6 +1242,32 @@ export class ChatWidget extends HTMLElement {
 
       list.appendChild(container);
       setTimeout(() => list.scrollTop = list.scrollHeight, 0);
+    }
+
+    // Update Visibility (e.g. if new message is Form/QR, hide input)
+    this._updateInputVisibility();
+  }
+
+  _deriveFileName(url, fallback) {
+    if (!url) return fallback || 'Download File';
+    try {
+      // 1. Extract basename from URL (remove query params)
+      const cleanUrl = url.split('?')[0];
+      const parts = cleanUrl.split('/');
+      let filename = parts[parts.length - 1];
+
+      // 2. Decode URI component if needed (e.g. %20)
+      filename = decodeURIComponent(filename);
+
+      // 3. Strip UUID suffix (format: _UUID)
+      // Matches _[UUID] followed by .extension or end of string
+      const uuidRegex = /_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=(\.[a-z0-9]+)?$)/i;
+
+      filename = filename.replace(uuidRegex, '');
+
+      return filename || fallback || 'Download File';
+    } catch (e) {
+      return fallback || 'Download File';
     }
   }
 

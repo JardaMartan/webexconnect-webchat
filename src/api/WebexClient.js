@@ -1,5 +1,4 @@
-
-import { SignJWT } from 'jose';
+// import { SignJWT } from 'jose'; // REMOVED
 
 // Helper to generate random string
 const generateRandomString = (length) => {
@@ -11,6 +10,10 @@ const generateRandomString = (length) => {
   return result;
 };
 
+// SERVICE_ID and SECRET removed as we fetch tokens now
+// const SERVICE_ID = ...
+// const SERVICE_SECRET = ...
+
 const CONFIG = {
   baseUrl: '',
   appId: '',
@@ -18,32 +21,67 @@ const CONFIG = {
   clientId: '',
   clientKey: '', // "secretkey" header
   accessToken: '', // Optional: Opaque token from config
-  deviceId: ''
+  deviceId: '',
+  widgetId: '', // Captured from URL parameter 'id' (legacy hdr_install_id), also used for upload support
+  clientHost: '', // Added for configurable host headers
+  websiteId: '', // Added for message extras
+  customProfileParams: '', // Added for message extras
+  mqttHost: '', // Added for externalized MQTT host
 };
 
 export const WebexClient = {
   initialize: async (config) => {
     Object.assign(CONFIG, config);
 
-    // Generate or retrieve User ID if not provided
+    // Default fallbacks if blank (legacy support logic) or validation could be added here
+
+    // Restore Access Token from local storage if not provided logic
+    if (!CONFIG.accessToken) {
+      CONFIG.accessToken = localStorage.getItem('webex_access_token') || '';
+    }
+
     // Generate or retrieve User ID if not provided
     if (!CONFIG.userId) {
-      // FIX: Check localStorage first!
-      let storedUserId = localStorage.getItem('webex_user_id');
+      // FIX: Check localStorage for legacy 'browserfingerprint' first!
+      // This ensures we use the same ID that the legacy widget used, which is required for
+      // the upload token authorization to match existing sessions on the backend.
+      let storedUserId = localStorage.getItem('browserfingerprint') || localStorage.getItem('webex_user_id');
+
       if (!storedUserId) {
         storedUserId = crypto.randomUUID();
+        localStorage.setItem('webex_user_id', storedUserId);
+      } else {
+        // If we found a legacy ID, ensure it's also saved as our new key for consistency
         localStorage.setItem('webex_user_id', storedUserId);
       }
       CONFIG.userId = storedUserId;
     }
 
+    // Capture Widget ID (legacy hdr_install_id) from URL or SessionStorage or Config
+    // Prioritize passed config, then URL, then SessionStorage
+    const urlParams = new URLSearchParams(window.location.search);
+    CONFIG.widgetId = CONFIG.widgetId || urlParams.get('id') || sessionStorage.getItem('webex_engage_data-bind') || '';
+    if (!CONFIG.widgetId) {
+      console.warn('WebexClient: Widget ID (id param) not found. Uploads may fail.');
+    }
+    console.log('WebexClient Initialized. UserID:', CONFIG.userId, 'WidgetID:', CONFIG.widgetId);
+
     // Generate Client ID
     // Format: appId/userId/deviceId
     let deviceId = localStorage.getItem('webex_device_id');
-    if (!deviceId) {
-      deviceId = 'v2_web_' + Math.random().toString(36).substring(2, 15);
+
+    // VALIDATION: Ensure deviceId is valid (starts with v2_web_ and has NO dashes)
+    // Legacy IDs might be raw UUIDs or have dashes.
+    const isValidDeviceId = (id) => id && id.startsWith('v2_web_') && !id.includes('-');
+
+    if (!isValidDeviceId(deviceId)) {
+      console.warn('WebexClient: Found invalid/legacy Device ID:', deviceId, 'Regenerating...');
+      // Generate new compatible ID: v2_web_ + UUID(no dashes)
+      const rawId = crypto.randomUUID().replace(/-/g, '');
+      deviceId = `v2_web_${rawId}`;
       localStorage.setItem('webex_device_id', deviceId);
     }
+
     CONFIG.deviceId = deviceId;
     CONFIG.clientId = `${CONFIG.appId}/${CONFIG.userId}/${CONFIG.deviceId}`;
 
@@ -108,6 +146,7 @@ export const WebexClient = {
     if (json.accessToken) {
       console.log('Registration Success. Token:', json.accessToken);
       CONFIG.accessToken = json.accessToken;
+      localStorage.setItem('webex_access_token', json.accessToken);
       return json.accessToken;
     } else {
       console.error('Registration response missing accessToken', json);
@@ -115,22 +154,66 @@ export const WebexClient = {
     }
   },
 
-  // Deprecated: generateJwt (Removed functionality)
-  generateJwt: async () => {
-    return '';
+  /**
+   * Fetches the official JWT for File Upload authorization from /oauth/token
+   * replacing the previous local generation method.
+   */
+  fetchUploadToken: async () => {
+    try {
+      // Credentials for Basic Auth: UserID : WidgetID
+      // Legacy code Sendoauthheaders() uses: browserFingerprint (userId) : hdr_install_id (widgetId)
+      // AND sends client_host header.
+      const credentials = `${CONFIG.userId}:${CONFIG.widgetId}`;
+      const encodedCredentials = btoa(credentials);
+
+      const url = 'https://chat-widget.imi.chat/oauth/token';
+
+      console.log('Fetching Upload Token from:', url);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${encodedCredentials}`,
+          'grant_type': 'client_credentials',
+          'client_host': window.location.hostname // Required by legacy backend
+        },
+        body: '' // Empty body as params are in headers
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Token fetch failed:', response.status, errorText);
+        throw new Error(`Token fetch failed: ${response.status}`);
+      }
+
+      const json = await response.json();
+      if (json.access_token) {
+        console.log('Upload Token Fetched successfully.');
+        return json.access_token;
+      } else {
+        throw new Error('Response missing access_token');
+      }
+
+    } catch (e) {
+      console.error('Error fetching upload token:', e);
+      return null;
+    }
   },
 
+  /**
+   * getAuthData returns the headers required for authorized requests.
+   * Note for Upload: We prefer the specific JWT fetched via fetchUploadToken over the opaque registration token.
+   */
   getAuthData: async () => {
     if (!CONFIG.accessToken) {
-      console.warn('No Access Token. Attempting lazy registration...');
       await WebexClient.register();
     }
-
     const headers = {
       'Content-Type': 'application/json',
-      'accesstoken': CONFIG.accessToken,
-      'secretkey': CONFIG.clientKey,
-      'sdkversion': '2.0.0'
+      'accesstoken': CONFIG.accessToken, // Restore accesstoken header for standard API
+
+      'secretkey': CONFIG.clientKey
     };
     return { jwt: CONFIG.accessToken, headers };
   },
@@ -170,41 +253,106 @@ export const WebexClient = {
     return data.thread;
   },
 
-  uploadFile: async (file) => {
-    // Standard IMI/Webex Connect Asset Upload
-    // POST /apps/{appId}/assets
-    const url = `${CONFIG.baseUrl}/apps/${CONFIG.appId}/assets`;
-    const { headers } = await WebexClient.getAuthData();
+  /**
+   * Uploads a file using the direct IMI upload endpoint and Authenticated JWT.
+   */
+  uploadFile: (file, onProgress) => {
+    return new Promise(async (resolve, reject) => {
+      // Direct URL
+      const url = 'https://chat-widget.imi.chat/upload';
 
-    // Create FormData
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', 'attachment'); // Optional, depending on API requirements
+      // Create FormData with required fields from chat45.har
+      const formData = new FormData();
+      formData.append('AppId', CONFIG.appId);
+      formData.append('EnableShortLivedUrl', '1');
+      formData.append('file', file);
+      // Note: 'Content-Type' for file part is handled by browser/FormData
 
-    // Remove Content-Type header to let browser set boundary for FormData
-    const uploadHeaders = { ...headers };
-    delete uploadHeaders['Content-Type'];
+      // Helper to format 32-char hex as UUID
+      const toUuid = (hex) => {
+        const clean = hex.replace(/[^a-fA-F0-9]/g, '');
+        if (clean.length !== 32) return hex; // Return as-is if not valid hex UUID
+        return `${clean.slice(0, 8)}-${clean.slice(8, 12)}-${clean.slice(12, 16)}-${clean.slice(16, 20)}-${clean.slice(20)}`;
+      };
 
-    console.log('Uploading file...', file.name);
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: uploadHeaders,
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`);
+      // Ensure deviceId is retrieved from ClientID if CONFIG.deviceId is missing/empty
+      // ClientID format: AppId/UserId/DeviceId
+      let effectiveDeviceId = CONFIG.deviceId;
+      if (!effectiveDeviceId && CONFIG.clientId) {
+        const parts = CONFIG.clientId.split('/');
+        if (parts.length >= 3) {
+          effectiveDeviceId = parts[parts.length - 1];
+        }
       }
 
-      const data = await response.json();
-      console.log('Upload success:', data);
-      return data; // Should contain assetId, url, etc.
-    } catch (e) {
-      console.error('Upload error', e);
-      throw e;
-    }
+      // FIX: X-installId header must match the widgetId (instid claim) in the JWT token.
+      const formattedInstallId = toUuid((CONFIG.widgetId || crypto.randomUUID()).replace('v2_web_', '')).toUpperCase();
+      const formattedUserId = toUuid((CONFIG.userId || crypto.randomUUID()).replace('v2_web_', '')).toLowerCase();
+
+      // Fetch proper JWT for upload
+      let uploadToken;
+      try {
+        uploadToken = await WebexClient.fetchUploadToken();
+      } catch (e) {
+        console.warn('Failed to fetch upload token', e);
+      }
+      const authToken = uploadToken ? `Bearer ${uploadToken}` : (CONFIG.accessToken ? `Bearer ${CONFIG.accessToken}` : '');
+
+      // XMLHttpRequest for Progress
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+
+      // Headers (Strictly aligned with imichatwidgetv2.js and chat1-3.har validation)
+      xhr.setRequestHeader('x-Fpid', formattedUserId);
+      xhr.setRequestHeader('Authorization', authToken);
+      xhr.setRequestHeader('X-installId', formattedInstallId);
+      xhr.setRequestHeader('client_host', window.location.hostname); // Required by backend
+      xhr.setRequestHeader('x-Id', '');
+      xhr.setRequestHeader('x-TId', '');
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.setRequestHeader('x-requested-with', 'XMLHttpRequest');
+
+      // DO NOT set Content-Type header when using FormData, browser sets it with boundary
+
+      // Progress Listener
+      if (xhr.upload && onProgress) {
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const percent = (e.loaded / e.total) * 100;
+            onProgress(percent);
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        console.log('Upload response status:', xhr.status);
+        const text = xhr.responseText;
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          let data = {};
+          try {
+            data = text ? JSON.parse(text) : {};
+          } catch (e) {
+            console.warn('Upload: Could not parse response as JSON', e);
+          }
+          console.log('Upload success:', data);
+          resolve(data);
+        } else {
+          const error = new Error(`Upload failed with status ${xhr.status}: ${text}`);
+          console.error('Upload error', error);
+          reject(error);
+        }
+      };
+
+      xhr.onerror = () => {
+        const error = new Error('Upload network error');
+        console.error('Upload error', error);
+        reject(error);
+      };
+
+      console.log('Uploading file...', file.name, url);
+      xhr.send(formData);
+    });
   },
 
   sendMessage: async (threadId, text, media = null, options = {}) => {
@@ -220,12 +368,13 @@ export const WebexClient = {
       extras: {
         browserfingerprint: CONFIG.userId,
         proactive_id: 0,
-        Website: "kp.cz",
-        website_id: 6619,
-        Webpage: "https://media.imi.chat/widget/widgetloader.html?docwidth=1686&id=30EC647F-3866-49C6-8090-5DA1CC0FB14B&org=",
-        customprofileparams: "j7W1zvAMDPaJctzg9ALHEANj9/LMsRYfkVhzpx9qaM3vySWbk8gsVk8o7rRU5OVD",
+        Website: CONFIG.clientHost || "example.com",
+        website_id: CONFIG.websiteId || "0",
+        // Dynamically construct logic URL if needed, or just pass simple metadata
+        Webpage: `https://media.imi.chat/widget/widgetloader.html?docwidth=1686&id=${CONFIG.widgetId}&org=`,
+        customprofileparams: CONFIG.customProfileParams || "",
         hasprechatform: "0",
-        "Initiated from URL": "https://kp.cz/~jarda/demo/",
+        "Initiated from URL": window.location.href, // Dynamic URL
         initiatedon: "",
         "Browser language": navigator.language || "en-US",
         useragent: navigator.userAgent
@@ -316,7 +465,8 @@ export const WebexClient = {
     return {
       clientId: mqttClientId,
       username: username,
-      password: password
+      password: password,
+      host: CONFIG.mqttHost // Return configured host
     };
   },
 

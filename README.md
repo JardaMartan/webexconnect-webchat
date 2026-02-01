@@ -1,114 +1,61 @@
-# Webex Connect Chat Widget
+# Webex App Chat Widget
 
-A custom, lightweight web chat widget designed for Webex Connect (IMIconnect). This widget uses the Real-Time Messaging API (RTMS) to facilitate customer support conversations.
-
-## Features
-
-- **Real-Time Messaging**: Built on Webex RTMS via MQTT / WebSocket.
-- **Rich Media Support**: Handles text, images, videos, audio, files, and location maps.
-- **Interactive Elements**: Supports Form templates and Quick Replies (Postback).
-- **History Management**: Automatically fetches and renders conversation history.
-- **Customizable**: Configuration via HTML attributes.
-- **Auto-Start**: Supports automated initial messages (visible or hidden).
-
-## Prerequisites
-
-- Node.js (v18+ recommended)
-- NPM
-
-## Installation
-
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/JardaMartan/webexconnect-webchat.git
-    cd webexconnect-webchat
-    ```
-
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
-
-3.  Run locally:
-    ```bash
-    npm run dev
-    ```
+A custom web component for embedding Webex App (IMI) chat functionality.
 
 ## Configuration
 
-The widget is configured entirely via HTML attributes on the `<chat-widget>` custom element. You must replace the placeholder values with your specific Webex Connect service credentials.
+The widget is configured via HTML attributes on the `<chat-widget>` tag.
 
-### Required Attributes
+### Critical Parameters
 
-| Attribute        | Description                                      | Source in Webex Connect |
-| ---------------- | ------------------------------------------------ | ----------------------- |
-| `app-id`         | Your App ID (e.g., `AI0208...`)                  | Assets -> Apps          |
-| `client-key`     | The "Secret Key" header value                    | Assets -> Apps -> Config|
-| `base-url`       | The RTMS API Endpoint                            | API Docs / Settings     |
+| Attribute | Description | Required | Source |
+|-----------|-------------|----------|--------|
+| `app-id` | Your Webex App ID | Yes | Webex Connect |
+| `client-key`        | `YOUR_CLIENT_KEY`    | **Required**. The secret key for authentication. |
+| `site-url`             | `YOUR_SITE_URL`      | **Required**. Your Webex Connect Site URL (e.g. `https://ccbootcamsandbox...webexconnect.io`). The derived API and MQTT URLs are used automatically. |
+| `website-domain`       | `YOUR_DOMAIN`        | **Required**. The "Website Domain" configured in your Web Chat Asset (e.g. `kp.cz`, `example.com`). |
+| `widget-id` OR `data-bind` | The Widget ID (UUID) | **Yes** (for uploads) | **Webex Control Hub** (See below) |
 
-> **Note on Base URL**: The RTMS URL differs from your standard Webex Connect login URL. It often includes a region suffix (e.g., `-usor`).
-> *   **Standard URL**: `https://<tenant>.us.webexconnect.io`
-> *   **RTMS URL (Use this)**: `https://<tenant>-usor.us.webexconnect.io/rtmsAPI/api/v3`
+### Obtaining the Widget ID (`data-bind`)
 
-### Optional Attributes
+To enable file uploads, you must provide the `widget-id` (also known as `data-bind`). 
 
-| Attribute              | Description                                                                 | Default |
-| ---------------------- | --------------------------------------------------------------------------- | ------- |
-| `start-message`        | Text to auto-send when a new chat starts (e.g., "Hello").                   | `null`  |
-| `start-message-hidden` | If `true`, the start message is sent but hidden from the UI (silent start). | `false` |
-| `lang`                 | Language code for localization (`en`, `es`, `it`, `de`, `cs`, `sk`).        | `en`    |
+1.  Go to **Webex Control Hub**.
+2.  Navigate to **Web Chat Assets**.
+3.  In the "Installation" section, find the **Embed Code**.
+4.  Look for the `data-bind` attribute in the snippet: `data-bind="GUID"`.
+5.  Use this GUID as the `widget-id` or `data-bind` attribute on this widget.
 
-## Usage
+For more details, refer to the [Webex Documentation: Set up Web Chat](https://help.webex.com/article/fgab23).
 
-### 1. Local Development
-Open `index.html` and replace the placeholder values with your credentials:
+### Optional Parameters
+
+| Attribute | Description | Default |
+|-----------|-------------|---------|
+| `start-message` | A message to send automatically when the chat starts. | None |
+| `start-message-hidden` | If `true`, the start message is hidden from the user interface. | `false` |
+| `custom-profile-params`| `YOUR_CUSTOM_PARAMS` | Custom profile parameters string for user context. |
+
+## Example Usage
 
 ```html
-  <chat-widget 
-    start-message="hello" 
-    start-message-hidden="true" 
-    app-id="YOUR_APP_ID" 
-    client-key="YOUR_CLIENT_KEY"
-    base-url="https://<tenant>-usor.us.webexconnect.io/rtmsAPI/api/v3">
-  </chat-widget>
-```
+<chat-widget
+  app-id="AI00000000"
+  client-key="your-client-key"
+  site-url="https://ccbootcampsandbox.us.webexconnect.io"
+  website-domain="example.com"
+  widget-id="00000000-0000-0000-0000-000000000000"
+  start-message-hidden="true"
+></chat-widget>
+<script type="module" src="./src/main.js"></script>
 
-### 2. Integration / Production
+## Deployment
 
-To deploy this widget to your website:
-
-1.  **Build the project**:
-    ```bash
-    npm run build
-    ```
-    This generates the production assets in the `dist/` folder.
-
-2.  **Host the assets**: Upload the JS and CSS files from `dist/assets/` to your CDN or web server.
-
-3.  **Embed in your HTML**:
-    Add the script tag and the widget element to your page.
-
-    ```html
-    <!-- Import the Widget Logic -->
-    <script type="module" src="https://your-cdn.com/assets/index.js"></script>
-    <link rel="stylesheet" href="https://your-cdn.com/assets/index.css">
-
-    <!-- Place the Widget -->
-    <chat-widget 
-        app-id="..." 
-        client-key="..." 
-        ...>
-    </chat-widget>
-    ```
-
-### Security Note
-**Never commit your real Service Secrets or Keys to public repositories.** 
-- For local testing, use a local `index.html` that is git-ignored, or manually paste keys.
-- For production, inject these values via your server-side template engine or CI/CD pipeline.
-
-## Customization
-
-The widget uses standard CSS variables and Shadow DOM. You can customize the appearance by modifying `src/index.css` or `src/components/ChatWidget.js`.
-
-## License
-MIT
+1.  **Build**: Run `npm run build` to generate the `dist/` folder.
+2.  **Host**: Upload the contents of `dist/` to your web server (e.g., `https://kp.cz/chat/`).
+3.  **Embed**:
+    *   Include the JS and CSS files from the build in your website's main HTML.
+    *   Add the `<chat-widget>` tag with your configuration.
+4.  **CORS Requirement**: 
+    *   Ensure your `website-domain` (e.g., `kp.cz`) matches the domain where you are hosting this widget.
+    *   Webex Connect uses this domain to whitelist your requests (CORS).
