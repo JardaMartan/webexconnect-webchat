@@ -112,9 +112,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
     border-radius: 50%;
     padding: 0;
     color: inherit;
@@ -196,6 +196,32 @@
     flex-direction: column;
     position: relative;
     /* Structural - Do Not Change */
+}
+
+/* ==========================================================================
+   AUDIO SETTINGS PANEL
+   ========================================================================== */
+#audio-settings-panel.visible {
+    display: flex;
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* Dynamic Icon States */
+.icon-success {
+    color: var(--md-sys-color-primary, green) !important;
+}
+
+.icon-error {
+    color: var(--md-sys-color-error, red) !important;
+}
+
+/* Muted/Unmuted Helper Classes */
+.muted {
+    color: var(--text-secondary);
+}
+
+.unmuted {
+    color: var(--primary-color);
 }
 
 md-theme {
@@ -368,6 +394,12 @@ footer {
 
 md-input {
     flex: 1;
+    margin-bottom: 0 !important;
+}
+
+md-input::part(md-input-container) {
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
 }
 
 /* ==========================================================================
@@ -586,4 +618,229 @@ md-list {
 
 #btn-hangup:hover md-icon {
     color: white !important;
+}
+
+/* ==========================================================================
+   LOADING SPINNER
+   ========================================================================== */
+.loading-spinner-container {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 100;
+}
+
+/* ==========================================================================
+   FOOTER & INPUT AREA
+   ========================================================================== */
+.main-footer {
+    flex-direction: column;
+    padding: 0;
+    gap: 0;
+}
+
+.input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    /* Center align items vertically */
+    padding: 12px;
+    /* Match header padding */
+    width: 100%;
+    box-sizing: border-box;
+    position: relative;
+}
+
+/* Enforce consistent height for input row elements */
+.input-row md-input {
+    height: 32px;
+    min-height: 32px;
+}
+
+.input-row .attachment-btn {
+    height: 32px;
+    width: 32px;
+    min-height: 32px;
+    min-width: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.input-row .send-btn {
+    height: 32px !important;
+    width: 32px !important;
+    min-height: 32px !important;
+    min-width: 32px !important;
+    padding: 0 !important;
+    --md-button-container-shape: 50%;
+    /* Force internal shadow DOM sizing */
+    --md-button-container-height: 32px !important;
+    --md-button-container-width: 32px !important;
+    --md-button-label-text-height: 32px !important;
+    --button-padding-horizontal: 0 !important;
+    --md-button-padding-horizontal: 0 !important;
+}
+
+.input-row .send-btn::part(button) {
+    height: 32px !important;
+    width: 32px !important;
+    min-height: 32px !important;
+    min-width: 32px !important;
+    padding: 0 !important;
+}
+
+.actions-right {
+    display: flex;
+    gap: 8px;
+    /* Replacement for margin-right on download btn */
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ==========================================================================
+   CALL CONTROLS (Extracted from JS)
+   ========================================================================== */
+@keyframes slideDown {
+    from {
+        height: 0;
+        opacity: 0;
+    }
+
+    to {
+        height: 48px;
+        opacity: 1;
+    }
+}
+
+#call-controls {
+    width: 100%;
+    height: 48px;
+    background-color: var(--widget-bg);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    /* Restore Left/Right layout */
+    padding: 0 12px;
+    /* Restore padding matching original info/actions */
+    gap: 16px;
+    animation: slideDown 0.3s ease-out forwards;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.call-status {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    /* position: absolute; REMOVED to restore flow */
+    /* left: 16px; */
+    max-width: none;
+    /* Removed restrictive width */
+    flex: 1;
+    /* Allow taking available space */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+    /* Allow shrinking if needed */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* Space between timer and status */
+}
+
+/* Ensure timer doesn't jump */
+.call-timer {
+    font-variant-numeric: tabular-nums;
+    /* Monospaced numbers */
+    min-width: 35px;
+    /* Prevent layout shift */
+}
+
+.call-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 0;
+    /* Remove auto centering */
+    /* margin: 0 auto; */
+    flex-shrink: 0;
+    /* Prevent buttons from shrinking */
+}
+
+/* Call Control Buttons */
+.call-actions md-button {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    --md-button-container-shape: 50%;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: none !important;
+}
+
+.control-icon {
+    font-size: 16px !important;
+    --md-icon-size: 16px !important;
+    width: 16px !important;
+    height: 16px !important;
+    pointer-events: none;
+    /* Ensure clicks pass to button */
+}
+
+.control-icon::part(icon) {
+    font-size: 16px !important;
+    width: 16px !important;
+    height: 16px !important;
+}
+
+/* Hangup Button Specifics */
+#btn-hangup {
+    transition: all 0.2s ease;
+    /* HIJACK the secondary variant variables to force Red styling */
+    --button-secondary-bg-color: var(--md-sys-color-error, #b00020);
+    --button-secondary-hover-bg-color: #8a0019;
+    --button-secondary-pressed-bg-color: #690013;
+    --button-secondary-text-color: white;
+    --button-secondary-outline-color: transparent;
+
+    background-color: var(--md-sys-color-error, #b00020) !important;
+    color: white !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+}
+
+#btn-hangup md-icon {
+    color: white !important;
+    --md-icon-color: white !important;
+}
+
+#btn-hangup:hover {
+    background-color: #8a0019 !important;
+    border-color: #8a0019 !important;
+}
+
+/* Mute/Settings Buttons */
+#btn-mute,
+#btn-audio-settings {
+    --md-sys-color-primary: #333;
+    /* Dark text for neutral state */
+}
+
+/* Settings Panel */
+#audio-settings-panel {
+    display: none;
+    /* Hidden by default */
 }

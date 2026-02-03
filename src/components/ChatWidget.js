@@ -380,9 +380,11 @@ export class ChatWidget extends HTMLElement {
             </button>
           </md-tooltip>
           <md-tooltip message="${this.i18n.t('download_transcript')}">
-            <button class="icon-btn download-btn" id="downloadBtn" style="margin-right: 8px;">
-               <md-icon name="download_16"></md-icon>
-            </button>
+            <div class="actions-right"> <!-- Wrapper for spacing -->
+              <button class="icon-btn download-btn" id="downloadBtn">
+                 <md-icon name="download_16"></md-icon>
+              </button>
+            </div>
           </md-tooltip>
           <span>${this.i18n.t('chat_header')}</span>
         </div>
@@ -393,19 +395,19 @@ export class ChatWidget extends HTMLElement {
         </md-tooltip>
       `;
       contentHtml = `
-        <div id="loadingSpinner" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100;">
+        <div id="loadingSpinner" class="loading-spinner-container">
           <md-spinner size="32"></md-spinner>
         </div>
         <div class="message-list">
         </div>
       `;
       footerHtml = `
-        <footer id="mainFooter" style="flex-direction: column; padding: 0; gap: 0;">
-          <div class="input-row" style="display: flex; gap: 8px; align-items: flex-start; padding: 12px; width: 100%; box-sizing: border-box; position: relative;">
-            <div id="uploadProgressContainer" class="progress-container" style="display: none;">
+        <footer id="mainFooter" class="main-footer">
+          <div class="input-row">
+            <div id="uploadProgressContainer" class="progress-container hidden">
               <div id="uploadProgressBar" class="progress-bar"></div>
             </div>
-            <input type="file" id="fileInput" style="display: none;" accept=".jpg,.jpeg,.gif,.png,.mp4,.mp3,.pdf,.docx,.doc,.xls,.xlsx,.csv,.ppt,.pptx,.wav" />
+            <input type="file" id="fileInput" class="hidden" accept=".jpg,.jpeg,.gif,.png,.mp4,.mp3,.pdf,.docx,.doc,.xls,.xlsx,.csv,.ppt,.pptx,.wav" />
             <md-tooltip message="${this.i18n.t('attachment')}">
               <button class="icon-btn attachment-btn" id="attachmentBtn">
                 <md-icon name="attachment_16"></md-icon>
@@ -433,8 +435,8 @@ export class ChatWidget extends HTMLElement {
       }, 0);
 
       footerHtml += `
-            <md-tooltip message="${this.i18n.t('send')}">
-              <md-button class="send-btn" variant="primary" size="32" circle>
+            <md-tooltip message="${this.i18n.t('send_message', 'Send Message')}">
+              <md-button class="send-btn" variant="primary" size="32" circle @click="${this.sendMessage}">
                 <md-icon name="send_16"></md-icon>
               </md-button>
             </md-tooltip>
@@ -2280,164 +2282,38 @@ export class ChatWidget extends HTMLElement {
 
     // Layout: Relative (Block) positioning to expand the footer height
     // Removed absolute positioning so it pushes the input row down/footer up.
-    controls.style.cssText = `
-              position: relative;
-              width: 100%;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              gap: 16px;
-              padding: 8px 0;
-              background-color: var(--md-sys-color-surface, #ffffff);
-              border-bottom: 1px solid rgba(0,0,0,0.05);
-              z-index: 10;
-              animation: slideDown 0.3s ease-out forwards;
-              `;
+    controls.id = 'call-controls';
 
-    // Button Styling: size="32" to match send button
-    // Red hover for hangup.
-    const btnStyle = 'margin: 0;';
+    // Calculate initial status text
+    const statusKey = this.currentCallStatus === 'connected' ? 'calling_status_connected' : 'calling_status_dialing';
+    // Fallback if status is undefined/initializing
+    const statusText = this.currentCallStatus ? this.i18n.t(statusKey, this.currentCallStatus) : this.i18n.t('calling_status_initializing', 'Initializing...');
 
     controls.innerHTML = `
-              <style>
-                @keyframes slideDown {
-                  from {height: 0; opacity: 0; }
-                  to {height: 48px; opacity: 1; }
-                }
-                #btn-hangup {
-                  transition: all 0.2s ease;
-                  
-                  /* HIJACK the secondary variant variables to force Red styling */
-                  /* This respects the component's internal mapping while changing the palette */
-                  --button-secondary-bg-color: var(--md-sys-color-error, #b00020);
-                  --button-secondary-hover-bg-color: #8a0019;
-                  --button-secondary-pressed-bg-color: #690013;
-                  --button-secondary-text-color: white;
-                  --button-secondary-outline-color: transparent;
-                  
-                  /* Ensure defaults are also set for safety */
-                  background-color: var(--md-sys-color-error, #b00020) !important;
-                  color: white !important;
-                  border: 1px solid transparent !important;
-                  box-shadow: none !important;
-                }
-                
-                #btn-hangup md-icon {
-                   color: white !important;
-                   --md-icon-color: white !important;
-                }
-                
-                #btn-hangup:hover {
-                   background-color: #8a0019 !important;
-                   border-color: #8a0019 !important;
-                }
+        <div class="call-status" title="${statusText}">
+          <span class="call-timer">00:00 </span>
+          <span class="status-label">${statusText}</span>
+        </div>
+        <div class="call-actions">
+          <md-tooltip message="${this.i18n.t('audio_settings', 'Audio Settings')}">
+             <md-button id="btn-audio-settings" variant="secondary" size="32" circle aria-label="${this.i18n.t('audio_settings', 'Audio Settings')}">
+               <md-icon name="settings_16" class="control-icon"></md-icon>
+             </md-button>
+          </md-tooltip>
 
-                /* Enforce button shape and prevent resizing */
-                .call-actions md-button {
-                   width: 32px !important;
-                   height: 32px !important;
-                   min-width: 32px !important;
-                   min-height: 32px !important;
-                   border-radius: 50% !important;
-                   padding: 0 !important;
-                   margin: 0 !important;
-                   --md-button-container-shape: 50%;
-                   display: flex !important;
-                   align-items: center !important;
-                   justify-content: center !important;
-                   box-shadow: none !important;
-                }
-                /* Lock icon size */
-                .call-actions md-icon {
-                    font-size: 16px !important;
-                    width: 16px !important;
-                    height: 16px !important;
-                    min-width: 16px !important;
-                    min-height: 16px !important;
-                    display: block !important;
-                }
-                .call-timer-pill {
-                  font-size: 12px;
-                  background: rgba(0,0,0,0.05);
-                  padding: 2px 8px;
-                  border-radius: 12px;
-                  margin-right: 8px;
-                  font-weight: 500;
-                }
-                /* Audio Settings Panel */
-                .settings-panel {
-                  position: absolute;
-                  bottom: 60px; /* Above the footer */
-                  left: 16px;
-                  background: white;
-                  border: 1px solid #e5e5e5;
-                  border-radius: 8px;
-                  padding: 12px;
-                  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                  width: 260px;
-                  display: none; /* Hidden by default */
-                  flex-direction: column;
-                  gap: 12px;
-                  z-index: 100;
-                }
-                .settings-panel.visible {
-                  display: flex;
-                  animation: fadeIn 0.2s ease-out;
-                }
-                @keyframes fadeIn {
-                  from { opacity: 0; transform: translateY(10px); }
-                  to { opacity: 1; transform: translateY(0); }
-                }
-                .setting-group {
-                  display: flex;
-                  flex-direction: column;
-                  gap: 4px;
-                }
-                .setting-group label {
-                  font-size: 12px;
-                  font-weight: 500;
-                  color: #545454;
-                }
-                .setting-group select {
-                  width: 100%;
-                  padding: 6px;
-                  border: 1px solid #ccc;
-                  border-radius: 4px;
-                  font-size: 13px;
-                  background: white;
-                }
-              </style>
-
-
-
-              <div class="call-info" style="display:flex; align-items:center; margin-right:auto; padding-left:16px;">
-                <span class="call-timer-pill call-timer">00:00</span>
-                <span class="call-status" style="font-size:11px; opacity:0.7;">${this.i18n.t('calling_status_initializing', 'Initializing...')}</span>
-              </div>
-
-              <div class="call-actions" style="display: flex; justify-content: center; align-items: center; gap: 8px; padding-right:16px;">
-                <!-- Audio Settings -->
-                <md-tooltip message="${this.i18n.t('audio_settings_tooltip', 'Audio Settings')}">
-                  <md-button circle size="32" variant="secondary" id="btn-audio-settings" style="${btnStyle}">
-                    <md-icon name="settings_16" size="16"></md-icon>
-                  </md-button>
-                </md-tooltip>
-
-                <!-- Mute Toggle -->
-                <md-tooltip message="${this.i18n.t('mute_tooltip', 'Mute')}">
-                  <md-button circle size="32" variant="secondary" id="btn-mute" style="${btnStyle}">
-                    <md-icon name="microphone-on_24" size="16" style="color: var(--md-sys-color-primary, green);"></md-icon>
-                  </md-button>
-                </md-tooltip>
-
-                <!-- Hangup - Forced Red via variable override -->
-                <md-tooltip message="${this.i18n.t('end_call_tooltip', 'End Call')}">
-                  <md-button circle size="32" id="btn-hangup" style="${btnStyle}">
-                    <md-icon name="cancel_16" size="16"></md-icon>
-                  </md-button>
-                </md-tooltip>
-              </div>
-              `;
+          <md-tooltip message="${this.i18n.t('mute')}" id="tooltip-mute">
+            <md-button id="btn-mute" variant="secondary" size="32" circle aria-label="${this.i18n.t('mute')}">
+              <md-icon name="microphone-on_24" class="control-icon"></md-icon>
+            </md-button>
+          </md-tooltip>
+          
+          <md-tooltip message="${this.i18n.t('end_call')}">
+             <md-button id="btn-hangup" variant="secondary" size="32" circle aria-label="${this.i18n.t('end_call')}">
+               <md-icon name="cancel_24" class="control-icon"></md-icon>
+             </md-button>
+          </md-tooltip>
+        </div>
+    `;
 
     // PREPEND to footer. Since footer is column, it sits on top.
     footer.insertBefore(controls, footer.firstChild);
@@ -2501,8 +2377,8 @@ export class ChatWidget extends HTMLElement {
       });
 
       // Handle empty lists
-      if (micSelect.options.length === 0) micSelect.innerHTML = `<option>${this.i18n.t('no_microphones_found', 'No Microphones found')}</option>`;
-      if (speakerSelect.options.length === 0) speakerSelect.innerHTML = `<option>${this.i18n.t('no_speakers_found', 'No Speakers found')}</option>`;
+      if (micSelect.options.length === 0) micSelect.innerHTML = `< option > ${this.i18n.t('no_microphones_found', 'No Microphones found')}</option > `;
+      if (speakerSelect.options.length === 0) speakerSelect.innerHTML = `< option > ${this.i18n.t('no_speakers_found', 'No Speakers found')}</option > `;
 
     } catch (e) {
       console.error('[Debug] Error populating devices:', e);
@@ -2561,8 +2437,13 @@ export class ChatWidget extends HTMLElement {
   }
 
   updateCallStatus(status) {
-    const el = this.shadowRoot.querySelector('.call-status');
-    if (el) el.textContent = status;
+    const el = this.shadowRoot.querySelector('.status-label');
+    if (el) {
+      el.textContent = status;
+      // Also update title on parent for tooltip behavior
+      const parent = this.shadowRoot.querySelector('.call-status');
+      if (parent) parent.title = status;
+    }
   }
 
   _handleCallConnected() {
@@ -2595,7 +2476,7 @@ export class ChatWidget extends HTMLElement {
       const min = String(Math.floor(delta / 60)).padStart(2, '0');
       const sec = String(delta % 60).padStart(2, '0');
       const el = this.shadowRoot.querySelector('.call-timer');
-      if (el) el.textContent = `${min}:${sec}`;
+      if (el) el.textContent = `${min}:${sec} `;
     };
 
     updateUI(); // Immediate update
@@ -2702,17 +2583,23 @@ export class ChatWidget extends HTMLElement {
 
     const btn = this.shadowRoot.querySelector('#btn-mute');
     const icon = btn.querySelector('md-icon');
+
+    // Clear inline styles if any
+    icon.style.color = '';
+
     if (isMuted) {
       icon.name = 'microphone-muted_24';
       // Muted: Red Icon
-      icon.style.color = 'var(--md-sys-color-error, red)';
-      btn.style.backgroundColor = '';
+      icon.classList.remove('icon-success');
+      icon.classList.add('icon-error');
     } else {
       icon.name = 'microphone-on_24';
       // Unmuted: Green Icon
-      icon.style.color = 'var(--md-sys-color-primary, green)';
-      btn.style.backgroundColor = '';
+      icon.classList.remove('icon-error');
+      icon.classList.add('icon-success');
     }
+    // Also ensure button background is clear (default secondary)
+    btn.style.backgroundColor = '';
   }
 
 
