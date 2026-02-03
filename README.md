@@ -48,6 +48,7 @@ For more details, refer to the [Webex Documentation: Set up Web Chat](https://he
   start-message-hidden="true"
 ></chat-widget>
 <script type="module" src="./src/main.js"></script>
+```
 
 ## Deployment
 
