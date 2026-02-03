@@ -59,3 +59,31 @@ For more details, refer to the [Webex Documentation: Set up Web Chat](https://he
 4.  **CORS Requirement**: 
     *   Ensure your `website-domain` (e.g., `kp.cz`) matches the domain where you are hosting this widget.
     *   Webex Connect uses this domain to whitelist your requests (CORS).
+62: 
+63: ## Webex Calling Integration
+64: 
+65: This widget supports in-browser voice calls using the Webex Calling SDK.
+66: 
+67: ### Quick Reply Payload for "Start Call" Button
+68: 
+69: To trigger a call from a flow (e.g., Webex Connect), send a Quick Reply with a custom payload. The widget detects this payload to render a special "Start Call" card or button.
+70: 
+71: **Required JSON Format:**
+72: 
+73: ```json
+74: {
+75:   "type": "webexcall",
+76:   "destination": "+1234567890",
+77:   "accessToken": "YOUR_WEBEX_CALLING_ACCESS_TOKEN"
+78: }
+79: ```
+80: 
+81: *   **type**: Must be `"webexcall"`. (Legacy fallback: `description` = `"make a call using webex calling"`)
+82: *   **destination**: The phone number or SIP URI to dial.
+83: *   **accessToken**: A valid JWT access token for the Webex Calling user/device. This token is required to authenticate the call.
+84: 
+85: ### Features
+86: *   **Audio Settings**: Floating panel to select Microphone and Speaker devices.
+87: *   **Call Controls**: Mute, Hangup, and Timer controls integrated into the chat footer.
+88: *   **Persistence**: Active calls remain connected even if the chat widget is toggled (minimized).
+89:
