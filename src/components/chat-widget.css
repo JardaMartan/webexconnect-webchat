@@ -46,7 +46,7 @@
     --z-index: 1000;
 
     /* Typography */
-    --font-family: 'Inter', sans-serif;
+    --font-family: 'CiscoSans', 'Helvetica Neue', Arial, sans-serif;
 
     /* ==========================================================================
        ⚠️ CORE LAYOUT & STRUCTURE
@@ -840,7 +840,78 @@ md-list {
 }
 
 /* Settings Panel */
-#audio-settings-panel {
+#audio-settings-panel.settings-panel {
+    position: absolute;
+    bottom: 120px;
+    left: 20px;
+    background: white;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: 260px;
     display: none;
-    /* Hidden by default */
+    flex-direction: column;
+    gap: 12px;
+    z-index: 10000;
+    box-sizing: border-box;
+}
+
+#audio-settings-panel.settings-panel.visible {
+    display: flex;
+    animation: fadeIn 0.2s ease-out;
+}
+
+#audio-settings-panel .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 8px;
+}
+
+#audio-settings-panel .panel-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+#audio-settings-panel .close-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+#audio-settings-panel .close-btn:hover {
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+#audio-settings-panel .setting-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+#audio-settings-panel .setting-group label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #545454;
+}
+
+#audio-settings-panel .setting-group select {
+    width: 100%;
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 13px;
+    background: white;
+    color: #333;
 }
