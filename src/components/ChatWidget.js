@@ -126,6 +126,10 @@ export class ChatWidget extends HTMLElement {
     // Add click outside listener (use capture or bubble? 'click' bubbles from document)
     // We attach to document.
     document.addEventListener('click', this._handleClickOutside);
+
+    // Bind Internal Click for Settings Panel
+    this._internalClickBound = this._handleInternalClick.bind(this);
+    this.shadowRoot.addEventListener('click', this._internalClickBound);
   }
 
   async init() {
@@ -155,9 +159,10 @@ export class ChatWidget extends HTMLElement {
       const startMsg = this.getAttribute('start-message');
       let autoStarted = false;
 
-      // REMOVED threads.length check to force auto-start for testing
-      if (startMsg) {
-        console.log('Start-message found. Auto-starting (forcing new thread)...');
+      // Auto-start only if there are no existing threads (i.e., new user/session)
+      // Prevents starting a new chat on every page reload for returning users.
+      if (startMsg && this.threads.length === 0) {
+        console.log('Start-message found and no existing threads. Auto-starting...');
         await this.startSilentChat(startMsg);
         autoStarted = true;
       }
@@ -178,9 +183,17 @@ export class ChatWidget extends HTMLElement {
   // ... (disconnectedCallback, handleMessage remain same)
 
   disconnectedCallback() {
+    this.removeEventListeners();
+    if (this.calling && this.calling.registered) {
+      console.log('Widget disconnected: Deregistering Webex Calling...');
+      this.calling.deregister().catch(err => console.warn('Deregister failed on disconnect', err));
+    }
     const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
     darkModeQuery.removeEventListener('change', this._handleThemeChange);
     document.removeEventListener('click', this._handleClickOutside);
+    if (this._internalClickBound) {
+      this.shadowRoot.removeEventListener('click', this._internalClickBound);
+    }
   }
 
   _handleThemeChange(e) {
@@ -200,6 +213,21 @@ export class ChatWidget extends HTMLElement {
   _handleClickOutside(e) {
     if (this.isOpen && e.target !== this) {
       this.toggle();
+    }
+  }
+
+  _handleInternalClick(e) {
+    const panel = this.shadowRoot.querySelector('#audio-settings-panel');
+    if (panel && panel.classList.contains('visible')) {
+      const path = e.composedPath();
+      const isInside = path.includes(panel);
+      // Also ignore clicks on the toggle button itself (id='btn-audio-settings')
+      // Note: toggle button might be inside call-controls which are in shadowRoot too.
+      const isToggleBtn = path.some(el => el.id === 'btn-audio-settings');
+
+      if (!isInside && !isToggleBtn) {
+        this.toggleAudioSettings(); // Close it
+      }
     }
   }
 
@@ -253,11 +281,32 @@ export class ChatWidget extends HTMLElement {
 
 
   render() {
-    if (!this.isOpen) {
-      // Render Launcher
+    // 1. Initialize Stable DOM Structure (Once)
+    if (!this.shadowRoot.querySelector('#ui-shell')) {
+      // Styles
+      const progressStyles = `
+          #mainFooter { position: relative; }
+          .progress-container { width: 100%; height: 4px; background-color: #f0f0f0; position: absolute; top: 0; left: 0; z-index: 10; }
+          .progress-bar { width: 0%; height: 100%; background-color: var(--md-sys-color-primary, #0070ad); transition: width 0.1s linear; }
+       `;
+
+      // We use a neutral shell (#ui-shell) instead of '.window' to allow different view modes (launcher vs window)
+      // style="display: contents" ensures this wrapper doesn't affect the layout (box tree)
       this.shadowRoot.innerHTML = `
-            <style>${styles}</style>
-            <md-theme lumos ${this.isDark ? 'darkTheme' : ''}>
+          <style>${styles} ${progressStyles}</style>
+          <div id="ui-shell" style="display: contents"></div>
+          <!-- Persistent Audio Element (Outside of UI shell to survive renders) -->
+          <audio id="remote-audio" autoplay playsinline style="display:none;"></audio>
+       `;
+    }
+
+    const uiShell = this.shadowRoot.querySelector('#ui-shell');
+
+    if (!this.isOpen) {
+      // Render Launcher (Neutral Container -> Theme -> Launcher)
+      // Note: We do NOT wrap this in .window
+      uiShell.innerHTML = `
+          <md-theme lumos ${this.isDark ? 'darkTheme' : ''}>
             <div class="launcher-container">
               <md-tooltip message="${this.i18n.t('open_chat')}" placement="left">
                 <md-button variant="primary" size="52" circle id="launcherBtn" class="launcher">
@@ -267,7 +316,8 @@ export class ChatWidget extends HTMLElement {
             </div>
           </md-theme>
       `;
-      this.shadowRoot.querySelector('#launcherBtn').addEventListener('click', (e) => {
+      const btn = uiShell.querySelector('#launcherBtn');
+      if (btn) btn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.toggle();
       });
@@ -291,38 +341,35 @@ export class ChatWidget extends HTMLElement {
       const threadsHtml = this.threads
         .filter(t => t && t.id)
         .map(t => `
-        <md-list-item slot="list-item" class="thread-item" data-id="${t.id}">
-          <div slot="start" class="thread-avatar">
-            ${(t.title && t.title !== 'Conversation' ? t.title.charAt(0) : t.id.charAt(0))}
-          </div>
-          <div class="thread-content" style="width: 100%;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div class="thread-title" style="font-weight:600;">${t.title || this.i18n.t('default_title')}</div>
-              <div class="thread-date" style="font-size:11px; color:#666;">${this.formatThreadDate(t.created_on || t.created)}</div>
+        <div class="thread-item" data-id="${t.id}">
+          <div class="thread-content">
+            <div class="thread-header">
+              <div class="thread-title">${t.title || this.i18n.t('default_title')}</div>
+              <div class="thread-date">${this.formatThreadDate(t.created_on || t.created)}</div>
             </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div class="thread-preview" style="font-size:12px; color:#666; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">
+            <div class="thread-footer">
+              <div class="thread-preview">
                 ${t.last_message || 'No preview available'}
               </div>
               ${t.unread_count ? `
-                <div style="background-color: var(--md-sys-color-primary, #0070ad); color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold;">
+                <div class="unread-badge">
                   ${t.unread_count}
                 </div>
               ` : ''}
             </div>
           </div>
-        </md-list-item>
+        </div>
       `).join('');
 
+      // Simplified Layout: Direct children of .content (flex-col)
+      // Custom div list for full control (no shadow DOM nesting issues)
       contentHtml = `
-        <div class="view-container" style="position:relative">
           <div class="content-padded">
              <md-button id="newChatBtn" variant="primary" class="new-chat-btn">${this.i18n.t('start_new_chat')}</md-button>
           </div>
-          <md-list>
+          <div class="thread-list">
             ${threadsHtml}
-          </md-list>
-        </div>
+          </div>
       `;
     } else {
       headerHtml = `
@@ -350,78 +397,100 @@ export class ChatWidget extends HTMLElement {
           <md-spinner size="32"></md-spinner>
         </div>
         <div class="message-list">
-          <div class="start-label">${this.i18n.t('start_conversation')}</div>
         </div>
       `;
       footerHtml = `
-        <footer id="mainFooter">
-          <div id="uploadProgressContainer" class="progress-container" style="display: none;">
-            <div id="uploadProgressBar" class="progress-bar"></div>
+        <footer id="mainFooter" style="flex-direction: column; padding: 0; gap: 0;">
+          <div class="input-row" style="display: flex; gap: 8px; align-items: flex-start; padding: 12px; width: 100%; box-sizing: border-box; position: relative;">
+            <div id="uploadProgressContainer" class="progress-container" style="display: none;">
+              <div id="uploadProgressBar" class="progress-bar"></div>
+            </div>
+            <input type="file" id="fileInput" style="display: none;" accept=".jpg,.jpeg,.gif,.png,.mp4,.mp3,.pdf,.docx,.doc,.xls,.xlsx,.csv,.ppt,.pptx,.wav" />
+            <md-tooltip message="${this.i18n.t('attachment')}">
+              <button class="icon-btn attachment-btn" id="attachmentBtn">
+                <md-icon name="attachment_16"></md-icon>
+              </button>
+            </md-tooltip>
+            <md-input id="chatInput" placeholder="${this.i18n.t('input_placeholder')}" shape="pill"></md-input>
+      `;
+
+      // Persist Call Controls if active
+      setTimeout(() => {
+        if (this.activeCall) {
+          console.log('[Debug] Restoring Call Controls after render');
+          this.renderCallControls();
+
+          // Restore Timer Logic
+          this.resumeCallTimer();
+
+          // Restore Status
+          if (this.currentCallStatus) {
+            const statusKey = this.currentCallStatus === 'connected' ? 'calling_status_connected' : 'calling_status_dialing';
+            const statusText = this.i18n.t(statusKey, this.currentCallStatus);
+            this.updateCallStatus(statusText);
+          }
+        }
+      }, 0);
+
+      footerHtml += `
+            <md-tooltip message="${this.i18n.t('send')}">
+              <md-button class="send-btn" variant="primary" size="32" circle>
+                <md-icon name="send_16"></md-icon>
+              </md-button>
+            </md-tooltip>
           </div>
-          <input type="file" id="fileInput" style="display: none;" accept=".jpg,.jpeg,.gif,.png,.mp4,.mp3,.pdf,.docx,.doc,.xls,.xlsx,.csv,.ppt,.pptx,.wav" />
-          <md-tooltip message="${this.i18n.t('attachment')}">
-            <button class="icon-btn attachment-btn" id="attachmentBtn">
-              <md-icon name="attachment_16"></md-icon>
-            </button>
-          </md-tooltip>
-          <md-input id="chatInput" placeholder="${this.i18n.t('input_placeholder')}" shape="pill"></md-input>
-          <md-tooltip message="${this.i18n.t('send')}">
-            <md-button class="send-btn" variant="primary" size="32" circle>
-              <md-icon name="send_16"></md-icon>
-            </md-button>
-          </md-tooltip>
         </footer>
       `;
     }
 
-    const progressStyles = `
-      #mainFooter { position: relative; }
-      .progress-container { width: 100%; height: 4px; background-color: #f0f0f0; position: absolute; top: 0; left: 0; z-index: 10; }
-      .progress-bar { width: 0%; height: 100%; background-color: var(--md-sys-color-primary, #0070ad); transition: width 0.1s linear; }
-    `;
-
-    this.shadowRoot.innerHTML = `
-        <style>${styles} ${progressStyles}</style>
-          <div class="window">
-            <md-theme lumos ${this.isDark ? 'darkTheme' : ''}>
-              <div class="view-container">
-                <header>${headerHtml}</header>
-                <div class="content">${contentHtml}</div>
-                ${footerHtml}
-              </div>
-            </md-theme>
-          </div>
+    // Render Window (Neutral Container -> .window -> Theme -> View)
+    uiShell.innerHTML = `
+        <div class="window">
+          <md-theme lumos ${this.isDark ? 'darkTheme' : ''}>
+            <div class="view-container">
+              <header>${headerHtml}</header>
+              <div class="content">${contentHtml}</div>
+              ${footerHtml}
+            </div>
+          </md-theme>
+        </div>
       `;
 
     // Event Listeners for Window Mode
-    const closeBtn = this.shadowRoot.querySelector('#closeBtn');
+    const closeBtn = uiShell.querySelector('#closeBtn');
     if (closeBtn) closeBtn.addEventListener('click', () => this.toggle());
 
     if (this.view === 'list') {
-      this.shadowRoot.querySelector('#newChatBtn').addEventListener('click', () => this.createNewChat());
-      this.shadowRoot.querySelectorAll('.thread-item').forEach(item => {
+      const newChatBtn = uiShell.querySelector('#newChatBtn');
+      if (newChatBtn) newChatBtn.addEventListener('click', () => this.createNewChat());
+      uiShell.querySelectorAll('.thread-item').forEach(item => {
         item.addEventListener('click', () => this.openChat(item.dataset.id));
       });
     } else {
-      this.shadowRoot.querySelector('.back-btn').addEventListener('click', () => this.showList());
-      this.shadowRoot.querySelector('.send-btn').addEventListener('click', () => this.sendMessage());
-      this.shadowRoot.querySelector('#downloadBtn').addEventListener('click', (e) => {
+      const backBtn = uiShell.querySelector('.back-btn');
+      if (backBtn) backBtn.addEventListener('click', () => this.showList());
+      const sendBtn = uiShell.querySelector('.send-btn');
+      if (sendBtn) sendBtn.addEventListener('click', () => this.sendMessage());
+      const downloadBtn = uiShell.querySelector('#downloadBtn');
+      if (downloadBtn) downloadBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation(); // Prevent closing the widget
         this.downloadTranscript();
       });
 
-      const input = this.shadowRoot.querySelector('#chatInput');
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') this.sendMessage();
-      });
-      input.addEventListener('input-keydown', (e) => {
-        if (e.detail.key === 'Enter') this.sendMessage();
-      });
+      const input = uiShell.querySelector('#chatInput');
+      if (input) {
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') this.sendMessage();
+        });
+        input.addEventListener('input-keydown', (e) => {
+          if (e.detail.key === 'Enter') this.sendMessage();
+        });
+      }
 
       // Attachment Logic
-      const fileInput = this.shadowRoot.querySelector('#fileInput');
-      const attachmentBtn = this.shadowRoot.querySelector('#attachmentBtn');
+      const fileInput = uiShell.querySelector('#fileInput');
+      const attachmentBtn = uiShell.querySelector('#attachmentBtn');
 
       if (attachmentBtn && fileInput) {
         attachmentBtn.addEventListener('click', () => {
@@ -431,7 +500,6 @@ export class ChatWidget extends HTMLElement {
         fileInput.addEventListener('change', (e) => {
           if (e.target.files && e.target.files.length > 0) {
             this.handleFileUpload(e.target.files[0]);
-            // Reset input so same file can be selected again if needed
             fileInput.value = '';
           }
         });
@@ -510,28 +578,28 @@ export class ChatWidget extends HTMLElement {
 
     // 4. Construct HTML
     const html = `
-<!DOCTYPE html>
-<html lang="${this.i18n.locale}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${this.i18n.t('chat_header')} - Transcript</title>
-    <style>
+        < !DOCTYPE html >
+          <html lang="${this.i18n.locale}">
+            <head>
+              <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>${this.i18n.t('chat_header')} - Transcript</title>
+                  <style>
         /* Base Reset & Fonts */
-        body {
+          body {
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 20px;
             background-color: #f7f7f7;
             color: #121212;
         }
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-        /* Inject Widget Styles (mapped to :root for variables) */
-        ${css.replace(/:host/g, ':root')}
+          /* Inject Widget Styles (mapped to :root for variables) */
+          ${css.replace(/:host/g, ':root')}
 
-        /* CRITICAL OVERRIDES: Reset the fixed widget layout imposed by converting :host to :root */
-        :root, body {
+/* CRITICAL OVERRIDES: Reset the fixed widget layout imposed by converting :host to :root */
+          :root, body {
             position: relative !important;
             width: 100% !important;
             height: auto !important;
@@ -546,9 +614,9 @@ export class ChatWidget extends HTMLElement {
             display: block !important;
             overflow: initial !important; /* Allow scrolling */
         }
-        
-        /* Ensure message list expands */
-        .message-list {
+
+          /* Ensure message list expands */
+          .message-list {
             padding: 20px !important;
             overflow: visible !important;
             height: auto !important;
@@ -556,8 +624,8 @@ export class ChatWidget extends HTMLElement {
             margin: 0 auto;
         }
 
-        /* High Contrast for Forms & Interactions */
-        md-button, .qr-button {
+          /* High Contrast for Forms & Interactions */
+          md-button, .qr-button {
             border: 1px solid #ccc !important;
             color: #333 !important;
             opacity: 1 !important;
@@ -566,47 +634,47 @@ export class ChatWidget extends HTMLElement {
             display: inline-block !important;
             font-weight: 500 !important;
         }
-        
-        md-button[variant="primary"], .qr-button-selected {
+
+          md-button[variant="primary"], .qr-button-selected {
             background-color: #0070d2 !important;
             color: white !important;
             border-color: #0070d2 !important;
         }
 
-        /* Styling for Transcript Pills (formerly inputs) */
-        .transcript-pill {
-             display: inline-block;
-             padding: 10px 20px;
-             border: 1px solid #ccc;
-             border-radius: 999px; /* Pill shape */
-             background-color: #fff;
-             color: #333;
-             font-family: inherit;
-             font-size: 14px;
-             font-weight: 500;
-             margin-top: 4px;
-             box-sizing: border-box;
-             /* Ensure text wraps if super long, or let it grow? Inline-block grows. */
-             max-width: 100%;
-             word-wrap: break-word;
+                    /* Styling for Transcript Pills (formerly inputs) */
+                    .transcript-pill {
+                      display: inline-block;
+                    padding: 10px 20px;
+                    border: 1px solid #ccc;
+                    border-radius: 999px; /* Pill shape */
+                    background-color: #fff;
+                    color: #333;
+                    font-family: inherit;
+                    font-size: 14px;
+                    font-weight: 500;
+                    margin-top: 4px;
+                    box-sizing: border-box;
+                    /* Ensure text wraps if super long, or let it grow? Inline-block grows. */
+                    max-width: 100%;
+                    word-wrap: break-word;
         }
 
-        /* Make disabled inputs visible (legacy standard inputs like checkboxes) */
-        input:disabled, textarea:disabled, select:disabled {
-             opacity: 1 !important;
-             color: #333 !important;
-             background: transparent !important; /* Cleaner look for checkboxes */
-             border: 1px solid #999 !important;
-             cursor: default;
+                    /* Make disabled inputs visible (legacy standard inputs like checkboxes) */
+                    input:disabled, textarea:disabled, select:disabled {
+                      opacity: 1 !important;
+                    color: #333 !important;
+                    background: transparent !important; /* Cleaner look for checkboxes */
+                    border: 1px solid #999 !important;
+                    cursor: default;
         }
-    </style>
-</head>
-<body>
-    <div class="message-list">
-        ${clone.innerHTML}
-    </div>
-</body>
-</html>`;
+                  </style>
+                </head>
+                <body>
+                  <div class="message-list">
+                    ${clone.innerHTML}
+                  </div>
+                </body>
+              </html>`;
 
     // 5. Trigger Download
     const blob = new Blob([html], { type: 'text/html' });
@@ -992,8 +1060,14 @@ export class ChatWidget extends HTMLElement {
         const isForm = msg.payload_type === 'sentToUser' && msg.media && msg.media.some(m => m.templateType === 'form');
         const isQr = msg.payload_type === 'sentToUser' && msg.quickReplies && msg.quickReplies.options && msg.quickReplies.options.length > 0;
 
+        // Check if QR contains a Webex Calling action (should NEVER be hidden as abandoned)
+        const isWebexCall = isQr && msg.quickReplies.options.some(opt =>
+          opt.payload && opt.payload.description === 'make a call using webex calling'
+        );
+
         // If it's a Form/QR, and NOT answered, and NOT the last message... hide it!
-        if ((isForm || isQr) && !msg._isAnswered && index < messages.length - 1) {
+        // EXCEPTION: Webex Calling cards are never abandoned
+        if ((isForm || isQr) && !msg._isAnswered && index < messages.length - 1 && !isWebexCall) {
           console.log('Hiding abandoned interactive message:', msg.tid);
           msg._skipRendering = true;
         }
@@ -1105,7 +1179,11 @@ export class ChatWidget extends HTMLElement {
     const chatInput = this.shadowRoot.querySelector('#chatInput');
     const attachmentBtn = this.shadowRoot.querySelector('#attachmentBtn');
 
-    if (isIncoming && (isForm || isQr) && !lastMsg._isAnswered) {
+    const hasCallOption = isQr && lastMsg.quickReplies.options.some(o =>
+      o.payload && o.payload.description === 'make a call using webex calling'
+    );
+
+    if (isIncoming && (isForm || (isQr && !hasCallOption)) && !lastMsg._isAnswered) {
       // console.log('Visibility: Hiding footer (Waiting for input)');
       footer.classList.add('footer-hidden');
       if (chatInput) chatInput.disabled = true;
@@ -1480,13 +1558,89 @@ export class ChatWidget extends HTMLElement {
       });
     }
 
-    // 3. Quick Replies
+    // Special Handling: Webex Calling Payload
+    // Check msg.payload OR msg.event.payload for history support
+    const payload = msg.payload || (msg.event && msg.event.payload);
+
+    if (payload && payload.description === 'make a call using webex calling' && payload.destination && payload.accessToken) {
+      console.log('Rendering Webex Calling Card');
+      const callContainer = document.createElement('div');
+      callContainer.className = 'webex-call-card';
+      // Basic styling - consider moving to CSS
+      callContainer.style.marginTop = '10px';
+      callContainer.style.padding = '12px';
+      callContainer.style.backgroundColor = 'var(--md-sys-color-surface-container-low, #f7f7f7)';
+      callContainer.style.borderRadius = '12px';
+      callContainer.style.border = '1px solid var(--md-sys-color-outline-variant, #e0e0e0)';
+      callContainer.style.display = 'flex';
+      callContainer.style.flexDirection = 'column';
+      callContainer.style.alignItems = 'center';
+      callContainer.style.gap = '8px';
+
+      const label = document.createElement('div');
+      label.textContent = 'Incoming Call Request';
+      label.style.fontSize = '12px';
+      label.style.fontWeight = '600';
+      label.style.color = 'var(--md-sys-color-on-surface, #1e1e1e)';
+
+      const btn = document.createElement('md-button');
+      btn.variant = 'primary';
+
+      const btnIcon = document.createElement('md-icon');
+      btnIcon.setAttribute('slot', 'icon');
+      btnIcon.name = 'handset_16';
+      btn.appendChild(btnIcon);
+
+      btn.textContent = this.i18n.t('start_call');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        console.log('Starting Call to:', payload.destination);
+        // Strict: Use only the token from the payload
+        this.startWebexCall(payload);
+      });
+
+      // callContainer.appendChild(icon); // Removed separate icon
+      callContainer.appendChild(label);
+      callContainer.appendChild(btn);
+      item.appendChild(callContainer);
+    }
+
     if (msg.quickReplies && msg.quickReplies.options && Array.isArray(msg.quickReplies.options)) {
-      console.log('Rendering Quick Replies:', msg.quickReplies.options);
+      console.log('Rendering Quick Replies. isAnswered:', msg._isAnswered, 'TID:', msg.tid);
       const qrContainer = document.createElement('div');
       qrContainer.className = 'qr-container';
 
       msg.quickReplies.options.forEach(opt => {
+        // Special Handling: Webex Calling Payload inside QR
+        if (opt.payload && opt.payload.description === 'make a call using webex calling' && opt.payload.destination && opt.payload.accessToken) {
+          console.log('Rendering Webex Calling Card (QR Option)');
+
+          const btn = document.createElement('md-button');
+          btn.variant = 'primary';
+
+
+
+          const btnIcon = document.createElement('md-icon');
+          btnIcon.style.marginRight = '8px';
+          btnIcon.name = 'handset_16';
+          btn.appendChild(btnIcon);
+
+          // Append text node safely
+          btn.appendChild(document.createTextNode(this.i18n.t('start_call')));
+          btn.className = 'qr-button'; // Keep standard class for layout
+
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            console.log('Starting Call to:', opt.payload.destination);
+            // Strict: Use only the token from the payload
+            this.startWebexCall(opt.payload);
+          });
+
+          // Append directly to QR Container
+          qrContainer.appendChild(btn);
+          return; // Skip standard button rendering for this option
+        }
+
         const btn = document.createElement('md-button');
         btn.variant = 'secondary';
         btn.size = '28';
@@ -1654,7 +1808,7 @@ export class ChatWidget extends HTMLElement {
 
   handleSystemEvent(msg) {
     // 1. Agent Assigned
-    // Format: message: "$$$$$AGENTASSIGNED$$$$$", extras: { customtags: { agent: "Alice" } }
+    // Format: message: "$$$$$AGENTASSIGNED$$$$$", extras: {customtags: {agent: "Alice" } }
     if (msg.message === '$$$$$AGENTASSIGNED$$$$$') {
       const agentName = (msg.extras && msg.extras.customtags && msg.extras.customtags.agent) || 'Agent';
       this.addSystemMessage(`${agentName} assigned`);
@@ -1662,7 +1816,7 @@ export class ChatWidget extends HTMLElement {
     }
 
     // 2. Typing Events
-    // Format: message: "$$$$$TYPING$$$$$", extras: { customtags: { typing: "typing_on" | "typing_off" } }
+    // Format: message: "$$$$$TYPING$$$$$", extras: {customtags: {typing: "typing_on" | "typing_off" } }
     // Or payload_type: "typingStart"
     if (msg.message === '$$$$$TYPING$$$$$' || msg.payload_type === 'typingStart') {
       const typingStatus = msg.extras && msg.extras.customtags && msg.extras.customtags.typing;
@@ -1714,10 +1868,10 @@ export class ChatWidget extends HTMLElement {
     bubble.className = 'message incoming typing-indicator';
     bubble.style.padding = '10px 14px';
     bubble.innerHTML = `
-        <div class="dots">
-          <span>.</span><span>.</span><span>.</span>
-        </div>
-      `;
+              <div class="dots">
+                <span>.</span><span>.</span><span>.</span>
+              </div>
+              `;
     // We can add styles dynamically or assuming they exist. 
     // Let's ensure standard styling matches 'incoming' class but adds animation.
 
@@ -1751,6 +1905,817 @@ export class ChatWidget extends HTMLElement {
     // NOTE: We intentionally do NOT disable forms or quick replies that are already rendered,
     // allowing the user to complete any pending actions or feedback.
   }
+
+
+  // ==========================================
+  // Webex Calling Integration
+  // ==========================================
+
+  async startWebexCall(payload) {
+    const { destination, accessToken } = payload;
+    if (!destination || !accessToken) {
+      console.error('Missing destination or accessToken for Webex Call');
+      return;
+    }
+
+    try {
+      this.renderCallControls();
+      this.updateCallStatus(this.i18n.t('calling_status_initializing', 'Initializing SDK...'));
+
+      // Global Singleton: Re-use instance across component remounts/calls to avoid double-init crash
+      if (!this.calling && window.webexCallingInstance) {
+        console.log('[Debug] Found global calling instance (singleton strategy)');
+        this.calling = window.webexCallingInstance;
+      }
+
+      // Smart Session Management: Check if we need to re-initialize
+      if (this.calling) {
+        console.log('[Debug] Existing calling instance found');
+        if (this.currentWebexToken && this.currentWebexToken !== accessToken) {
+          console.log('[Debug] Access Token changed. Deregistering old session...');
+          try {
+            await this.calling.deregister();
+          } catch (e) {
+            console.warn('[Debug] Deregister old session failed:', e);
+          }
+          // Note: If token changes, we might need a way to fully destroy the global instance or update it.
+          // For now, we assume deregister effectively resets the session for the new token registration.
+          // If Calling.init is strictly one-time with immutable credentials, we might need page reload.
+          console.log('[Debug] calling instance deregistered due to token change');
+        } else {
+          console.log('[Debug] Token matches, reusing calling instance');
+        }
+      } else {
+        console.log('[Debug] No existing calling instance');
+      }
+      this.currentWebexToken = accessToken;
+
+      if (!this.calling) {
+        // Fallback for dynamic import naming
+        console.log('[Debug] Checking global Webex objects');
+        if (!window.WebexCore || !window.WebexCalling) {
+          console.log('[Debug] window.WebexCore or window.WebexCalling missing');
+        }
+
+        console.log('[Debug] Initializing Webex Calling SDK (Reference Pattern)...');
+
+        // Config structure from app.js
+        const webexConfig = {
+          config: {
+            logger: { level: 'info' },
+            calling: { cacheU2C: true },
+            meetings: { reconnection: { enabled: true }, enableRtx: true },
+            encryption: { kmsInitialTimeout: 8000, kmsMaxTimeout: 40000, batcherMaxCalls: 30 }
+          },
+          credentials: {
+            access_token: accessToken
+          }
+        };
+
+        const callingConfig = {
+          clientConfig: {
+            calling: true,
+            contact: true,
+            callHistory: true,
+            callSettings: true,
+            voicemail: true
+          },
+          callingClientConfig: {
+            logger: { level: 'info' },
+            serviceData: { indicator: 'calling', domain: '' }
+          },
+          logger: { level: 'info' }
+        };
+
+        // Use global Calling object (from calling.min.js)
+        // eslint-disable-next-line no-undef
+        this.calling = await Calling.init({ webexConfig, callingConfig });
+
+        // Save to global singleton
+        window.webexCallingInstance = this.calling;
+        console.log('[Debug] Calling instance initialized and saved to window.webexCallingInstance');
+
+        await new Promise((resolve) => {
+          this.calling.on('ready', () => {
+            console.log('[Debug] Calling client ready');
+            resolve();
+          });
+        });
+      } else {
+        console.log('[Debug] Reusing existing calling instance');
+      }
+
+      // Check if already registered
+      console.log('[Debug] Checking registration status:', this.calling.registered);
+      if (!this.calling.registered) {
+        console.log('[Debug] Registering Calling Client...');
+        await this.calling.register();
+      } else {
+        console.log('[Debug] Calling Client already registered');
+      }
+
+      this.callingClient = this.calling.callingClient;
+
+      // Fetch lines
+      console.log('[Debug] Ensuring callingClient lines are ready...');
+      // Wait a bit for lines to populate if needed
+      await new Promise(r => setTimeout(r, 500));
+
+      const lines = this.callingClient.getLines();
+      console.log('[Debug] Lines retrieved:', lines);
+      const line = Object.values(lines)[0]; // Use local variable for safety
+
+      if (!line) {
+        throw new Error('No lines found after registration');
+      }
+
+      console.log('[Debug] Line found:', line);
+      // Explicitly register the line if not already registered (matches app.js behavior)
+      if (!line.registered) {
+        console.log('[Debug] Line not registered, calling register()...');
+        await line.register();
+        console.log('[Debug] Line registration completed.');
+      } else {
+        console.log('[Debug] Line already registered.');
+      }
+
+      this.webexLine = line; // Assign to instance for later access
+      console.log('[Debug] Line registered status:', this.webexLine.registered);
+
+      // Listen for incoming calls on this line (optional)
+      this.webexLine.on('line:incoming_call', (callObj) => {
+        console.log('[Debug] Incoming call', callObj);
+      });
+
+      this.updateCallStatus(this.i18n.t('calling_status_dialing', 'Dialing...'));
+
+      // Create stream using Calling.createMicrophoneStream as in app.js
+      try {
+        // eslint-disable-next-line no-undef
+        this.localStream = await Calling.createMicrophoneStream({ audio: true });
+      } catch (e) {
+        console.error('[Debug] Failed to create mic stream via SDK', e);
+        this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+
+      // Dial using line.makeCall as in app.js
+      console.log('[Debug] Dialing destination:', destination);
+      // Ensure we use the local variable or safe check
+      const safeLine = this.webexLine || Object.values(this.callingClient.getLines())[0];
+
+      const call = safeLine.makeCall({
+        type: 'uri',
+        address: destination,
+        constraints: { audio: true, video: false }
+      });
+      this.activeCall = call;
+
+      // Handle events - Attach BEFORE calling .dial() to avoid race conditions
+      console.log('[Debug] Call object created. typeof call.on:', typeof call.on);
+
+      // Listen for all potential 'ringing' events
+      const onRinging = () => {
+        console.log('[Debug] Call ringing/progress');
+        this.updateCallStatus(this.i18n.t('calling_status_ringing', 'Ringing...'));
+      };
+      call.on('ringing', onRinging);
+      call.on('alerting', onRinging);
+      call.on('progress', onRinging);
+
+      // Listen for all potential 'connected' events
+      const onConnected = () => {
+        console.log('[Debug] Call connected/established');
+        this._handleCallConnected();
+      };
+      call.on('connected', onConnected);
+      call.on('connect', onConnected);
+      call.on('established', onConnected);
+
+      // Catch-all state change listener (Debug + Fallback)
+      call.on('change:state', (newState) => {
+        console.log('[Debug] Call state changed to:', newState);
+        if (newState === 'connected' || newState === 'established') {
+          this._handleCallConnected();
+        }
+      });
+
+      // ICE State listener (Fallback if high-level events fail)
+      call.on('change:iceConnectionState', (iceState) => {
+        console.log('[Debug] ICE Connection State changed:', iceState);
+        if (iceState === 'connected' || iceState === 'completed') {
+          if (this.currentCallStatus !== 'connected') {
+            console.log('[Debug] Triggering connected state via ICE state');
+            this._handleCallConnected();
+          }
+        }
+      });
+
+      call.on('remote_media', (track) => {
+        console.log('[Debug] Remote Media Received', track);
+        this.handleRemoteAudio(new MediaStream([track]));
+      });
+
+      // Use 'disconnected' (standard) and 'disconnect' (legacy/fallback)
+      const onDisconnect = (reason) => {
+        console.log('[Debug] Call disconnected:', reason);
+        this.endWebexCall();
+      };
+      call.on('disconnected', onDisconnect);
+      call.on('disconnect', onDisconnect);
+
+      call.on('error', (err) => {
+        console.error('[Debug] Call Error', err);
+        // Only trigger end if it's a fatal error
+        this.updateCallStatus(this.i18n.t('calling_status_error', 'Error'));
+        setTimeout(() => this.endWebexCall(), 2000);
+      });
+
+      // Now initiate the dial
+      if (typeof call.dial === 'function') {
+        call.dial(this.localStream);
+      } else {
+        console.warn('[Debug] Call object does not have dial method?', call);
+      }
+    } catch (err) {
+      console.error('Webex Calling Error:', err);
+      this.updateCallStatus(this.i18n.t('calling_status_error', 'Error') + ': ' + err.message);
+      setTimeout(() => this.endWebexCall(), 3000);
+    }
+  }
+
+  handleRemoteAudio(stream) {
+    let audio = this.shadowRoot.querySelector('#remote-audio');
+    if (!audio) {
+      audio = document.createElement('audio');
+      audio.id = 'remote-audio';
+      audio.autoplay = true;
+      audio.style.display = 'none';
+      this.shadowRoot.appendChild(audio);
+    }
+    audio.srcObject = stream;
+  }
+
+  renderCallControls() {
+    const footer = this.shadowRoot.querySelector('#mainFooter');
+    if (!footer) return;
+
+    // 1. Ensure Panel Exists (Global in Shadow DOM)
+    let panel = this.shadowRoot.querySelector('#audio-settings-panel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'audio-settings-panel';
+      panel.className = 'settings-panel';
+      panel.innerHTML = `
+        <style>
+          .settings-panel {
+            position: absolute;
+            bottom: 150px;
+            left: 20px;
+            background: white;
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            width: 260px;
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            z-index: 1000;
+          }
+          .settings-panel.visible {
+            display: flex;
+            animation: fadeIn 0.2s ease-out;
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+           .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+            border-bottom: 1px solid #f0f0f0;
+            padding-bottom: 8px;
+          }
+          .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+          }
+          .close-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            color: #666;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+          }
+          .close-btn:hover {
+            background-color: #f5f5f5;
+            color: #333;
+          }
+          .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+          }
+          .setting-group label {
+            font-size: 12px;
+            font-weight: 500;
+            color: #545454;
+          }
+          .setting-group select {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 13px;
+            background: white;
+          }
+        </style>
+        <div class="panel-header">
+           <span class="panel-title">${this.i18n.t('audio_settings_title', 'Audio Settings')}</span>
+           <button class="close-btn" id="btn-close-settings" title="${this.i18n.t('close', 'Close')}">
+             <md-icon name="cancel_16" size="16"></md-icon>
+           </button>
+        </div>
+        <div class="setting-group">
+          <label for="mic-select">${this.i18n.t('audio_settings_mic_label', 'Microphone')}</label>
+          <select id="mic-select"><option>${this.i18n.t('loading', 'Loading...')}</option></select>
+        </div>
+        <div class="setting-group">
+          <label for="speaker-select">${this.i18n.t('audio_settings_speaker_label', 'Speaker')}</label>
+          <select id="speaker-select"><option>${this.i18n.t('loading', 'Loading...')}</option></select>
+        </div>
+      `;
+      this.shadowRoot.appendChild(panel);
+
+      /* Event Binding */
+      // Close Button
+      panel.querySelector('#btn-close-settings').addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleAudioSettings(); // Toggle handles hide logic
+      });
+
+      // Device Selection
+      panel.querySelector('#mic-select').addEventListener('change', (e) => this._switchMicrophone(e.target.value));
+      panel.querySelector('#speaker-select').addEventListener('change', (e) => this._switchSpeaker(e.target.value));
+    }
+
+    let controls = this.shadowRoot.querySelector('.call-controls');
+    if (controls) return; // Already exists
+
+    controls = document.createElement('div');
+    controls.className = 'call-controls';
+
+    // Inject Styles for Call Controls
+    // We append a style tag if not already prevalent, or just inline the critical bits.
+    // Since we are inside Shadow DOM, we can append a style tag to the controls or ensure global styles.
+    // Simpler: Inline styles or rely on existing CSS if updated. 
+    // We'll add a specific style block for the widget to handle this dynamic state.
+
+    // Layout: Relative (Block) positioning to expand the footer height
+    // Removed absolute positioning so it pushes the input row down/footer up.
+    controls.style.cssText = `
+              position: relative;
+              width: 100%;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              gap: 16px;
+              padding: 8px 0;
+              background-color: var(--md-sys-color-surface, #ffffff);
+              border-bottom: 1px solid rgba(0,0,0,0.05);
+              z-index: 10;
+              animation: slideDown 0.3s ease-out forwards;
+              `;
+
+    // Button Styling: size="32" to match send button
+    // Red hover for hangup.
+    const btnStyle = 'margin: 0;';
+
+    controls.innerHTML = `
+              <style>
+                @keyframes slideDown {
+                  from {height: 0; opacity: 0; }
+                  to {height: 48px; opacity: 1; }
+                }
+                #btn-hangup {
+                  transition: all 0.2s ease;
+                  
+                  /* HIJACK the secondary variant variables to force Red styling */
+                  /* This respects the component's internal mapping while changing the palette */
+                  --button-secondary-bg-color: var(--md-sys-color-error, #b00020);
+                  --button-secondary-hover-bg-color: #8a0019;
+                  --button-secondary-pressed-bg-color: #690013;
+                  --button-secondary-text-color: white;
+                  --button-secondary-outline-color: transparent;
+                  
+                  /* Ensure defaults are also set for safety */
+                  background-color: var(--md-sys-color-error, #b00020) !important;
+                  color: white !important;
+                  border: 1px solid transparent !important;
+                  box-shadow: none !important;
+                }
+                
+                #btn-hangup md-icon {
+                   color: white !important;
+                   --md-icon-color: white !important;
+                }
+                
+                #btn-hangup:hover {
+                   background-color: #8a0019 !important;
+                   border-color: #8a0019 !important;
+                }
+
+                /* Enforce button shape and prevent resizing */
+                .call-actions md-button {
+                   width: 32px !important;
+                   height: 32px !important;
+                   min-width: 32px !important;
+                   min-height: 32px !important;
+                   border-radius: 50% !important;
+                   padding: 0 !important;
+                   margin: 0 !important;
+                   --md-button-container-shape: 50%;
+                   display: flex !important;
+                   align-items: center !important;
+                   justify-content: center !important;
+                   box-shadow: none !important;
+                }
+                /* Lock icon size */
+                .call-actions md-icon {
+                    font-size: 16px !important;
+                    width: 16px !important;
+                    height: 16px !important;
+                    min-width: 16px !important;
+                    min-height: 16px !important;
+                    display: block !important;
+                }
+                .call-timer-pill {
+                  font-size: 12px;
+                  background: rgba(0,0,0,0.05);
+                  padding: 2px 8px;
+                  border-radius: 12px;
+                  margin-right: 8px;
+                  font-weight: 500;
+                }
+                /* Audio Settings Panel */
+                .settings-panel {
+                  position: absolute;
+                  bottom: 60px; /* Above the footer */
+                  left: 16px;
+                  background: white;
+                  border: 1px solid #e5e5e5;
+                  border-radius: 8px;
+                  padding: 12px;
+                  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                  width: 260px;
+                  display: none; /* Hidden by default */
+                  flex-direction: column;
+                  gap: 12px;
+                  z-index: 100;
+                }
+                .settings-panel.visible {
+                  display: flex;
+                  animation: fadeIn 0.2s ease-out;
+                }
+                @keyframes fadeIn {
+                  from { opacity: 0; transform: translateY(10px); }
+                  to { opacity: 1; transform: translateY(0); }
+                }
+                .setting-group {
+                  display: flex;
+                  flex-direction: column;
+                  gap: 4px;
+                }
+                .setting-group label {
+                  font-size: 12px;
+                  font-weight: 500;
+                  color: #545454;
+                }
+                .setting-group select {
+                  width: 100%;
+                  padding: 6px;
+                  border: 1px solid #ccc;
+                  border-radius: 4px;
+                  font-size: 13px;
+                  background: white;
+                }
+              </style>
+
+
+
+              <div class="call-info" style="display:flex; align-items:center; margin-right:auto; padding-left:16px;">
+                <span class="call-timer-pill call-timer">00:00</span>
+                <span class="call-status" style="font-size:11px; opacity:0.7;">${this.i18n.t('calling_status_initializing', 'Initializing...')}</span>
+              </div>
+
+              <div class="call-actions" style="display: flex; justify-content: center; align-items: center; gap: 8px; padding-right:16px;">
+                <!-- Audio Settings -->
+                <md-tooltip message="${this.i18n.t('audio_settings_tooltip', 'Audio Settings')}">
+                  <md-button circle size="32" variant="secondary" id="btn-audio-settings" style="${btnStyle}">
+                    <md-icon name="settings_16" size="16"></md-icon>
+                  </md-button>
+                </md-tooltip>
+
+                <!-- Mute Toggle -->
+                <md-tooltip message="${this.i18n.t('mute_tooltip', 'Mute')}">
+                  <md-button circle size="32" variant="secondary" id="btn-mute" style="${btnStyle}">
+                    <md-icon name="microphone-on_24" size="16" style="color: var(--md-sys-color-primary, green);"></md-icon>
+                  </md-button>
+                </md-tooltip>
+
+                <!-- Hangup - Forced Red via variable override -->
+                <md-tooltip message="${this.i18n.t('end_call_tooltip', 'End Call')}">
+                  <md-button circle size="32" id="btn-hangup" style="${btnStyle}">
+                    <md-icon name="cancel_16" size="16"></md-icon>
+                  </md-button>
+                </md-tooltip>
+              </div>
+              `;
+
+    // PREPEND to footer. Since footer is column, it sits on top.
+    footer.insertBefore(controls, footer.firstChild);
+
+    // Add class for potential parent styling adjustments
+    footer.classList.add('has-active-call');
+
+    // Bind Events
+    controls.querySelector('#btn-hangup').addEventListener('click', () => this.hangupCall());
+    controls.querySelector('#btn-mute').addEventListener('click', () => this.toggleMute());
+    controls.querySelector('#btn-audio-settings').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleAudioSettings();
+    });
+  }
+
+  async toggleAudioSettings() {
+    const panel = this.shadowRoot.querySelector('#audio-settings-panel');
+    if (!panel) return;
+
+    const isVisible = panel.classList.contains('visible');
+
+    if (isVisible) {
+      panel.classList.remove('visible');
+      panel.style.display = 'none';
+    } else {
+      panel.classList.add('visible');
+      panel.style.display = 'flex';
+      await this._populateAudioDevices();
+    }
+  }
+
+  async _populateAudioDevices() {
+    try {
+      // Ensure we have permission labels
+      await navigator.mediaDevices.getUserMedia({ audio: true }).then(s => s.getTracks().forEach(t => t.stop())).catch(() => { });
+
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const micSelect = this.shadowRoot.querySelector('#mic-select');
+      const speakerSelect = this.shadowRoot.querySelector('#speaker-select');
+
+      // Save current selection (or default)
+      const currentMic = this.selectedMicId || '';
+      const currentSpeaker = this.selectedSpeakerId || '';
+
+      micSelect.innerHTML = '';
+      speakerSelect.innerHTML = '';
+
+      devices.forEach(device => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.text = device.label || `${device.kind} - ${device.deviceId.slice(0, 5)}...`;
+
+        if (device.kind === 'audioinput') {
+          micSelect.appendChild(option);
+          if (device.deviceId === currentMic) option.selected = true;
+        } else if (device.kind === 'audiooutput') {
+          speakerSelect.appendChild(option);
+          if (device.deviceId === currentSpeaker) option.selected = true;
+        }
+      });
+
+      // Handle empty lists
+      if (micSelect.options.length === 0) micSelect.innerHTML = `<option>${this.i18n.t('no_microphones_found', 'No Microphones found')}</option>`;
+      if (speakerSelect.options.length === 0) speakerSelect.innerHTML = `<option>${this.i18n.t('no_speakers_found', 'No Speakers found')}</option>`;
+
+    } catch (e) {
+      console.error('[Debug] Error populating devices:', e);
+    }
+  }
+
+  async _switchMicrophone(deviceId) {
+    console.log('[Debug] Switching Microphone to:', deviceId);
+    this.selectedMicId = deviceId;
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: { exact: deviceId } }
+      });
+
+      // Replace in active call
+      if (this.activeCall) {
+        const audioTrack = newStream.getAudioTracks()[0];
+        // Search for senders
+        if (this.activeCall.peerConnection) {
+          const sender = this.activeCall.peerConnection.getSenders().find(s => s.track && s.track.kind === 'audio');
+          if (sender) {
+            await sender.replaceTrack(audioTrack);
+            console.log('[Debug] Audio track replaced successfully');
+          } else {
+            console.warn('[Debug] No audio sender found to replace');
+          }
+        } else {
+          // Fallback: Check if Call object exposes replaceMediaStream or similar (Webex SDK v2/v3 specific)
+          // But for now, just log warning as peerConnection is the standard way.
+          console.warn('[Debug] activeCall.peerConnection not found. SDK might be wrapping it.');
+        }
+        // Update local stream reference
+        this.localStream = newStream;
+      }
+    } catch (e) {
+      console.error('[Debug] Failed to switch microphone:', e);
+    }
+  }
+
+  async _switchSpeaker(deviceId) {
+    console.log('[Debug] Switching Speaker to:', deviceId);
+    this.selectedSpeakerId = deviceId;
+    const audioEl = this.shadowRoot.querySelector('#remote-audio');
+    if (audioEl) {
+      if (typeof audioEl.setSinkId === 'function') {
+        try {
+          await audioEl.setSinkId(deviceId);
+          console.log('[Debug] Speaker switched successfully');
+        } catch (e) {
+          console.error('[Debug] Failed to set sink ID:', e);
+        }
+      } else {
+        console.warn('[Debug] Browser does not support setSinkId (output device selection)');
+      }
+    }
+  }
+
+  updateCallStatus(status) {
+    const el = this.shadowRoot.querySelector('.call-status');
+    if (el) el.textContent = status;
+  }
+
+  _handleCallConnected() {
+    if (this._isConnected) return; // Debounce
+    this._isConnected = true;
+    console.log('[Debug] Handling Call Connected State');
+    this.updateCallStatus(this.i18n.t('calling_status_connected', 'Connected'));
+    this.setCallControlsState('connected');
+    this.startCallTimer();
+    this.currentCallStatus = 'connected';
+  }
+
+  setCallControlsState(state) {
+    // Enable/Disable buttons based on state
+  }
+
+  startCallTimer() {
+    this.callStartTime = Date.now();
+    this.resumeCallTimer();
+  }
+
+  resumeCallTimer() {
+    // If interval already runs, do nothing (or clear and restart to ensure UI binding?)
+    if (this.callTimerInterval) clearInterval(this.callTimerInterval);
+
+    if (!this.callStartTime) this.callStartTime = Date.now(); // Fallback
+
+    const updateUI = () => {
+      const delta = Math.floor((Date.now() - this.callStartTime) / 1000);
+      const min = String(Math.floor(delta / 60)).padStart(2, '0');
+      const sec = String(delta % 60).padStart(2, '0');
+      const el = this.shadowRoot.querySelector('.call-timer');
+      if (el) el.textContent = `${min}:${sec}`;
+    };
+
+    updateUI(); // Immediate update
+    this.callTimerInterval = setInterval(updateUI, 1000);
+  }
+
+  stopCallTimer() {
+    if (this.callTimerInterval) clearInterval(this.callTimerInterval);
+    this.callTimerInterval = null;
+  }
+
+  async hangupCall() {
+    if (this.activeCall) {
+      try {
+        this.activeCall.end();
+        console.log('Call ended successfully');
+      } catch (e) {
+        console.warn('End call failed:', e);
+      }
+    }
+    await this.endWebexCall();
+  }
+
+  async endWebexCall() {
+    console.log('[Debug] endWebexCall invoked');
+    this.stopCallTimer();
+    if (this.activeCall) {
+      console.log('[Debug] Cleaning up activeCall');
+      this.activeCall = null;
+    }
+
+    // Persistent Connection: We do NOT deregister here to allow re-dialing.
+    // Deregistration happens on 'disconnectedCallback' or if a new user logs in (token change).
+
+
+    // OLD CODE - caused 403/400 errors on re-dial
+    // Update: User requested full teardown.
+    // Since startWebexCall is now robust enough to handle re-init/re-register, we can safely deregister here to free the line.
+    /*
+    // REVERTING DEREGISTRATION:
+    // Calling deregister() causes the Mercury socket to close/reset, which leads to timeouts and "peerConnectionState=failed"
+    // on subsequent calls even if we re-register. The most stable approach for a browser phone is to stay registered.
+    // We will ONLY end the call (handled by the .hangup() or .end() called before this) and clean up local state.
+    if (this.calling) {
+                console.log('[Debug] Deregistering calling instance...');
+              try {
+                await this.calling.deregister();
+              console.log('[Debug] Deregistration successful');
+      } catch (e) {
+                console.warn('[Debug] Deregistration failed (non-fatal):', e);
+      }
+  
+              // Full Teardown: Clearing the instance (this.calling = null) causes "Calling backend is not identified" / 400 Bad Request
+              // on subsequent re-initialization. It seems Calling.init cannot be called multiple times/cleanly without page reload.
+              // We will KEEP the instance (and the global singleton) but ensure it is deregistered. This releases the line but keeps the SDK warm.
+              // this.calling = null; 
+              console.log('[Debug] Calling instance retained (Deregistered state). Global singleton preserved.');
+    }
+              */
+    console.log('[Debug] Skipping deregister to maintain stable session for next call.');
+
+    // Reset strictly call-related state
+    this.callingClient = null;
+    this.webexLine = null;
+
+    // Remove Controls
+    const controls = this.shadowRoot.querySelector('.call-controls');
+    if (controls) controls.remove();
+
+    // Remove Settings Panel
+    const panel = this.shadowRoot.querySelector('#audio-settings-panel');
+    if (panel) panel.remove();
+
+    const footer = this.shadowRoot.querySelector('#mainFooter');
+    if (footer) footer.classList.remove('has-active-call');
+
+    // Stop Local Stream tracks
+    if (this.localStream) {
+      console.log('[Debug] Stopping local stream tracks');
+      if (typeof this.localStream.stop === 'function') {
+        this.localStream.stop();
+      } else if (typeof this.localStream.getTracks === 'function') {
+        this.localStream.getTracks().forEach(track => track.stop());
+      }
+      this.localStream = null;
+    }
+  }
+
+  toggleMute() {
+    if (!this.activeCall || !this.localStream) {
+      console.log('toggleMute ignored: no active call or local stream');
+      return;
+    }
+
+    // Use SDK mute method
+    this.activeCall.mute(this.localStream, 'user_mute');
+
+    // Check property on localStream (SDK toggles it)
+    let isMuted = this.localStream.userMuted;
+
+    // Fallback: if userMuted is not updated immediately, we might need to assume toggle?
+    // app.js relies on event, but for now we trust the property or the action.
+    console.log('toggleMute called, new userMuted state:', isMuted);
+
+    const btn = this.shadowRoot.querySelector('#btn-mute');
+    const icon = btn.querySelector('md-icon');
+    if (isMuted) {
+      icon.name = 'microphone-muted_24';
+      // Muted: Red Icon
+      icon.style.color = 'var(--md-sys-color-error, red)';
+      btn.style.backgroundColor = '';
+    } else {
+      icon.name = 'microphone-on_24';
+      // Unmuted: Green Icon
+      icon.style.color = 'var(--md-sys-color-primary, green)';
+      btn.style.backgroundColor = '';
+    }
+  }
+
+
 }
 
 customElements.define('chat-widget', ChatWidget);
