@@ -361,6 +361,8 @@ export const WebexClient = {
         title: "Conversation",
         type: "Conversation"
       },
+      outgoing: true,
+      ...options,
       extras: {
         browserfingerprint: CONFIG.userId,
         proactive_id: 0,
@@ -373,10 +375,9 @@ export const WebexClient = {
         "Initiated from URL": window.location.href, // Dynamic URL
         initiatedon: "",
         "Browser language": navigator.language || "en-US",
-        useragent: navigator.userAgent
-      },
-      outgoing: true,
-      ...options // Merge additional options like relatedTid and interactiveData
+        useragent: navigator.userAgent,
+        ...(options.extras || {})
+      }
     };
 
     if (text) {
@@ -437,6 +438,24 @@ export const WebexClient = {
       return data.messages || [];
     } catch (e) {
       console.error('Message fetch failed', e);
+      return [];
+    }
+  },
+
+  fetchThreads: async () => {
+    // URL: https://.../apps/{appId}/user/{userId}/threads
+    const url = `${CONFIG.baseUrl}/apps/${CONFIG.appId}/user/${CONFIG.userId}/threads`;
+    const { headers } = await WebexClient.getAuthData();
+
+    try {
+      const response = await fetch(url, { headers });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch threads: ${response.statusText}`);
+      }
+      const data = await response.json();
+      return data.threads || [];
+    } catch (e) {
+      console.error('Thread fetch failed', e);
       return [];
     }
   },

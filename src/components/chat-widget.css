@@ -65,6 +65,15 @@
     --md-sys-color-on-primary: var(--primary-text-color);
     --md-sys-color-primary-container: var(--primary-color);
     --md-sys-color-on-primary-container: var(--primary-text-color);
+    --md-sys-color-secondary: var(--text-secondary);
+    --md-sys-color-on-secondary: #ffffff;
+    --md-sys-color-surface: var(--widget-bg);
+    --md-sys-color-on-surface: var(--text-primary);
+    --md-sys-color-outline: var(--border-color);
+
+    /* Specific overrides for Toggle Switch/Dropdown if needed */
+    --md-toggle-switch-selected-handle-color: var(--primary-color);
+    --md-toggle-switch-selected-track-color: var(--primary-color);
 }
 
 /* ==========================================================================
@@ -215,6 +224,140 @@
     color: var(--md-sys-color-error, red) !important;
 }
 
+/* Audio Settings Panel Styles */
+.settings-panel {
+    display: none;
+    flex-direction: column;
+    position: absolute;
+    bottom: 70px;
+    /* Above footer */
+    left: 16px;
+    right: 16px;
+    background: var(--widget-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1100;
+    /* Above everything inside widget */
+}
+
+.settings-panel.visible {
+    display: flex;
+}
+
+.settings-panel .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.settings-panel .panel-title {
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.settings-panel .setting-group {
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-panel label {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-primary);
+}
+
+.settings-panel md-dropdown {
+    width: 100%;
+    --md-dropdown-list-max-height: 200px;
+    font-size: 12px !important;
+}
+
+/* Retarget internal parts for Dropdown */
+.settings-panel md-dropdown::part(dropdown-button) {
+    color: var(--text-primary, #121212);
+    /* Input border/background might need adjustment too */
+    background: var(--widget-bg, #ffffff);
+    font-size: 12px !important;
+}
+
+.settings-panel md-dropdown::part(dropdown-options) {
+    background-color: var(--widget-bg, #ffffff);
+    border: 1px solid var(--border-color, #e5e5e5);
+    color: var(--text-primary, #121212);
+    font-size: 12px !important;
+}
+
+.settings-panel md-dropdown::part(dropdown-option) {
+    color: var(--text-primary, #121212) !important;
+    background-color: var(--widget-bg, #ffffff);
+    font-size: 12px !important;
+}
+
+/* Selected Option Style */
+.settings-panel md-dropdown::part(dropdown-option)::after {
+    /* Some shadow DOMs reject complex selectors on parts. 
+       If md-dropdown-option uses regular attributes, we might targeting them via part?
+       Actually ::part matches the element. We can use :state(selected) if supported or attribute selectors if exposed?
+       Standard CSS ::part(name)[attribute] is NOT supported. 
+       We have to rely on the component exposing a specific part for the selected state or using mapped variables.
+       Let's check if the component maps selection color to a variable.
+       Usually --md-list-item-active-bg-color or similar. 
+    */
+}
+
+/* Force override for active/selected state variables if possible */
+.settings-panel md-dropdown {
+    --md-list-item-active-bg-color: rgba(0, 112, 210, 0.1);
+    /* Primary with opacity */
+    --md-list-item-active-text-color: var(--primary-color);
+}
+
+.settings-panel md-dropdown::part(label) {
+    color: var(--text-primary, #121212) !important;
+    font-size: 12px !important;
+}
+
+.settings-panel md-toggle-switch {
+    width: 100%;
+    color: var(--text-primary, #121212) !important;
+    font-size: 12px !important;
+    /* Toggle Switch Variables - ensuring visibility */
+    --md-toggle-switch-off-track-color: #cccccc;
+    --md-toggle-switch-off-handle-color: #ffffff;
+    --md-toggle-switch-on-track-color: var(--primary-color);
+    --md-toggle-switch-on-handle-color: #ffffff;
+
+    /* Ensure handle isn't blending in */
+    --md-sys-color-surface-container-highest: #e0e0e0;
+    /* Off track usually */
+    --md-sys-color-primary: var(--primary-color);
+    /* On track */
+    --md-sys-color-on-primary: #ffffff;
+    /* Handle on */
+    --md-sys-color-outline: #888888;
+    /* Border/Off state */
+}
+
+.settings-panel md-toggle-switch::part(toggle-label) {
+    color: var(--text-primary, #121212) !important;
+    font-size: 12px !important;
+}
+
+/* Fix "All White" Toggle - Force border/backgrounds if vars fail */
+.settings-panel md-toggle-switch::part(track) {
+    border: 1px solid var(--border-color, #ccc);
+}
+
+.checkbox-group {
+    flex-direction: row !important;
+    align-items: center;
+}
+
 /* Muted/Unmuted Helper Classes */
 .muted {
     color: var(--text-secondary);
@@ -340,6 +483,30 @@ header {
     color: var(--bubble-incoming-text);
     border: 1px solid var(--border-color);
     border-bottom-left-radius: 4px;
+}
+
+.qr-button {
+    margin: 4px;
+    --md-button-container-shape: 16px;
+}
+
+.qr-button-selected {
+    --md-filled-button-container-color: var(--md-sys-color-primary, #005073) !important;
+    --md-filled-button-label-text-color: var(--md-sys-color-on-primary, #ffffff) !important;
+    opacity: 1 !important;
+    pointer-events: none;
+    /* Prevent clicking again but look active */
+}
+
+/* Ensure disabled buttons look disabled */
+.qr-button:disabled:not(.qr-button-selected) {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* Specific override for Call Us button which is primary but might not have selected class */
+.qr-button[variant="primary"]:not(:disabled) {
+    opacity: 1 !important;
 }
 
 .bubble.outgoing {
@@ -633,6 +800,140 @@ md-list {
 }
 
 /* ==========================================================================
+   UTILITY CLASSES & EXTRACTED STYLES
+   ========================================================================== */
+
+/* Visibility Toggles */
+.hidden {
+    display: none !important;
+}
+
+.visible-flex {
+    display: flex !important;
+}
+
+.visible-block {
+    display: block !important;
+}
+
+/* UI Shell Layout Helper */
+.ui-shell {
+    display: contents;
+}
+
+/* Hidden Audio Element */
+.remote-audio {
+    display: none;
+}
+
+/* Progress Bar Styles (Previously inline) */
+.main-footer {
+    position: relative;
+    /* Ensure absolute children position relative to footer */
+}
+
+.progress-container {
+    width: 100%;
+    height: 4px;
+    background-color: #f0f0f0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 10;
+    display: none;
+    /* Hidden by default */
+}
+
+.progress-container.visible {
+    display: block;
+}
+
+.progress-bar {
+    width: 0%;
+    height: 100%;
+    background-color: var(--md-sys-color-primary, #0070ad);
+    transition: width 0.1s linear;
+}
+
+.input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+
+/* Chat Media Form Styles (Previously inline) */
+.chat-media-form {
+    /* Container styles if needed */
+}
+
+.chat-media-form-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.chat-media-form-field {
+    margin-bottom: 8px;
+}
+
+.chat-media-form-label {
+    display: block;
+    font-size: 12px;
+    margin-bottom: 4px;
+    color: var(--md-sys-color-on-surface-variant, #444);
+}
+
+.chat-media-form-input {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 4px;
+}
+
+/* Webex Call Card (Previously inline) */
+.webex-call-card {
+    margin-top: 10px;
+    padding: 12px;
+    background-color: var(--md-sys-color-surface-container-low, #f7f7f7);
+    border-radius: 12px;
+    border: 1px solid var(--md-sys-color-outline-variant, #e0e0e0);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.webex-call-card-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface, #1e1e1e);
+}
+
+/* System Message */
+.system-message {
+    text-align: center;
+    color: #666;
+    font-size: 12px;
+    margin: 10px 0;
+    font-style: italic;
+}
+
+/* QR Button Icon */
+.qr-btn-icon {
+    margin-right: 8px;
+}
+
+/* iframe border override if needed */
+.iframe-no-border {
+    border: 0;
+}
+
+/* Input Validation Error */
+.input-error {
+    border: 1px solid var(--md-sys-color-error, #b00020) !important;
+}
+
+/* ==========================================================================
    FOOTER & INPUT AREA
    ========================================================================== */
 .main-footer {
@@ -914,4 +1215,24 @@ md-list {
     font-size: 13px;
     background: white;
     color: #333;
+}
+
+/* Fallback Spinner */
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border-left-color: var(--primary-color);
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }

@@ -21,6 +21,7 @@ export const translations = {
         calling_status_registering: "Registering...",
         calling_status_dialing: "Dialing...",
         calling_status_connected: "Connected",
+        calling_status_ringing: "Ringing...",
         hangup: "End Call",
         mute: "Mute",
         unmute: "Unmute",
@@ -35,7 +36,8 @@ export const translations = {
         calling_status_error: "Error",
         audio_settings_tooltip: "Audio Settings",
         mute_tooltip: "Mute",
-        end_call_tooltip: "End Call"
+        end_call_tooltip: "End Call",
+        audio_settings_bnr_label: "Remove Background Noise"
     },
     es: {
         my_chats: "Mis Chats",
@@ -68,7 +70,8 @@ export const translations = {
         calling_status_error: "Error",
         audio_settings_tooltip: "Configuración de Audio",
         mute_tooltip: "Silenciar",
-        end_call_tooltip: "Finalizar Llamada"
+        end_call_tooltip: "Finalizar Llamada",
+        audio_settings_bnr_label: "Eliminar ruido de fondo"
     },
     it: {
         my_chats: "Le Mie Chat",
@@ -98,10 +101,14 @@ export const translations = {
         no_microphones_found: "Nessun microfono trovato",
         no_speakers_found: "Nessun altoparlante trovato",
         calling_status_initializing: "Inizializzazione...",
+        calling_status_dialing: "Composizione...",
+        calling_status_ringing: "Squillando...",
+        calling_status_connected: "Connesso",
         calling_status_error: "Errore",
         audio_settings_tooltip: "Impostazioni Audio",
         mute_tooltip: "Muto",
-        end_call_tooltip: "Termina Chiamata"
+        end_call_tooltip: "Termina Chiamata",
+        audio_settings_bnr_label: "Rimuovi rumore di fondo"
     },
     de: {
         my_chats: "Meine Chats",
@@ -131,10 +138,14 @@ export const translations = {
         no_microphones_found: "Keine Mikrofone gefunden",
         no_speakers_found: "Keine Lautsprecher gefunden",
         calling_status_initializing: "Initialisierung...",
+        calling_status_dialing: "Wählen...",
+        calling_status_ringing: "Klingeln...",
+        calling_status_connected: "Verbunden",
         calling_status_error: "Fehler",
         audio_settings_tooltip: "Audioeinstellungen",
         mute_tooltip: "Stummschalten",
-        end_call_tooltip: "Anruf beenden"
+        end_call_tooltip: "Anruf beenden",
+        audio_settings_bnr_label: "Hintergrundgeräusche entfernen"
     },
     cs: {
         my_chats: "Moje Konverzace",
@@ -163,10 +174,14 @@ export const translations = {
         no_microphones_found: "Nenalezeny žádné mikrofony",
         no_speakers_found: "Nenalezeny žádné reproduktory",
         calling_status_initializing: "Inicializace...",
+        calling_status_dialing: "Vytáčení...",
+        calling_status_ringing: "Vyzvánění...",
+        calling_status_connected: "Připojeno",
         calling_status_error: "Chyba",
         audio_settings_tooltip: "Nastavení zvuku",
         mute_tooltip: "Ztlumit",
-        end_call_tooltip: "Ukončit hovor"
+        end_call_tooltip: "Ukončit hovor",
+        audio_settings_bnr_label: "Odstranit hluk pozadí"
     },
     sk: {
         my_chats: "Moje Konverzácie",
@@ -196,10 +211,14 @@ export const translations = {
         no_microphones_found: "Nenašli sa žiadne mikrofóny",
         no_speakers_found: "Nenašli sa žiadne reproduktory",
         calling_status_initializing: "Inicializácia...",
+        calling_status_dialing: "Vytáčanie...",
+        calling_status_ringing: "Vyzváňanie...",
+        calling_status_connected: "Pripojené",
         calling_status_error: "Chyba",
         audio_settings_tooltip: "Nastavenia zvuku",
         mute_tooltip: "Stlmiť",
-        end_call_tooltip: "Ukončiť hovor"
+        end_call_tooltip: "Ukončiť hovor",
+        audio_settings_bnr_label: "Odstrániť hluk pozadia"
     },
     fr: {
         my_chats: "Mes discussions",
@@ -227,10 +246,14 @@ export const translations = {
         no_microphones_found: "Aucun microphone détecté",
         no_speakers_found: "Aucun haut-parleur détecté",
         calling_status_initializing: "Initialisation...",
+        calling_status_dialing: "Numérotation...",
+        calling_status_ringing: "Sonnerie...",
+        calling_status_connected: "Connecté",
         calling_status_error: "Erreur",
         audio_settings_tooltip: "Paramètres audio",
         mute_tooltip: "Couper le son",
-        end_call_tooltip: "Raccrocher"
+        end_call_tooltip: "Raccrocher",
+        audio_settings_bnr_label: "Supprimer le bruit de fond"
     },
     pt: {
         my_chats: "Meus Chats",
@@ -261,7 +284,8 @@ export const translations = {
         calling_status_error: "Erro",
         audio_settings_tooltip: "Configurações de Áudio",
         mute_tooltip: "Mudo",
-        end_call_tooltip: "Encerrar Chamada"
+        end_call_tooltip: "Encerrar Chamada",
+        audio_settings_bnr_label: "Remover ruído de fundo"
     },
     nl: {
         my_chats: "Mijn Chats",
@@ -289,10 +313,14 @@ export const translations = {
         no_microphones_found: "Geen microfoons gevonden",
         no_speakers_found: "Geen luidsprekers gevonden",
         calling_status_initializing: "Initialiseren...",
+        calling_status_dialing: "Kiezen...",
+        calling_status_ringing: "Overgaan...",
+        calling_status_connected: "Verbonden",
         calling_status_error: "Fout",
         audio_settings_tooltip: "Audio-instellingen",
         mute_tooltip: "Dempen",
-        end_call_tooltip: "Ophangen"
+        end_call_tooltip: "Ophangen",
+        audio_settings_bnr_label: "Achtergrondgeluid verwijderen"
     },
     pl: {
         my_chats: "Moje czaty",
@@ -320,10 +348,14 @@ export const translations = {
         no_microphones_found: "Nie znaleziono mikrofonów",
         no_speakers_found: "Nie znaleziono głośników",
         calling_status_initializing: "Inicjowanie...",
+        calling_status_dialing: "Wybieranie...",
+        calling_status_ringing: "Dzwonienie...",
+        calling_status_connected: "Połączono",
         calling_status_error: "Błąd",
         audio_settings_tooltip: "Ustawienia dźwięku",
         mute_tooltip: "Wycisz",
-        end_call_tooltip: "Zakończ połączenie"
+        end_call_tooltip: "Zakończ połączenie",
+        audio_settings_bnr_label: "Usuń hałas w tle"
     },
     ru: {
         my_chats: "Мои чаты",
@@ -351,10 +383,14 @@ export const translations = {
         no_microphones_found: "Микрофоны не найдены",
         no_speakers_found: "Динамики не найдены",
         calling_status_initializing: "Инициализация...",
+        calling_status_dialing: "Набор номера...",
+        calling_status_ringing: "Звонок...",
+        calling_status_connected: "Подключено",
         calling_status_error: "Ошибка",
         audio_settings_tooltip: "Настройки аудио",
         mute_tooltip: "Выключить микрофон",
-        end_call_tooltip: "Завершить звонок"
+        end_call_tooltip: "Завершить звонок",
+        audio_settings_bnr_label: "Удалить фоновый шум"
     },
     ja: {
         my_chats: "マイチャット",
@@ -382,10 +418,14 @@ export const translations = {
         no_microphones_found: "マイクが見つかりません",
         no_speakers_found: "スピーカーが見つかりません",
         calling_status_initializing: "初期化中...",
+        calling_status_dialing: "ダイヤル中...",
+        calling_status_ringing: "呼び出し中...",
+        calling_status_connected: "接続中",
         calling_status_error: "エラー",
         audio_settings_tooltip: "オーディオ設定",
         mute_tooltip: "ミュート",
-        end_call_tooltip: "通話を終了"
+        end_call_tooltip: "通話を終了",
+        audio_settings_bnr_label: "背景ノイズを除去"
     },
     ko: {
         my_chats: "내 채팅",
@@ -413,10 +453,14 @@ export const translations = {
         no_microphones_found: "마이크를 찾을 수 없음",
         no_speakers_found: "스피커를 찾을 수 없음",
         calling_status_initializing: "초기화 중...",
+        calling_status_dialing: "전화 거는 중...",
+        calling_status_ringing: "신호 가는 중...",
+        calling_status_connected: "연결됨",
         calling_status_error: "오류",
         audio_settings_tooltip: "오디오 설정",
         mute_tooltip: "음소거",
-        end_call_tooltip: "통화 종료"
+        end_call_tooltip: "통화 종료",
+        audio_settings_bnr_label: "배경 소음 제거"
     },
     zh: {
         my_chats: "我的聊天",
@@ -444,10 +488,14 @@ export const translations = {
         no_microphones_found: "未找到麦克风",
         no_speakers_found: "未找到扬声器",
         calling_status_initializing: "初始化...",
+        calling_status_dialing: "拨号中...",
+        calling_status_ringing: "响铃中...",
+        calling_status_connected: "已连接",
         calling_status_error: "错误",
         audio_settings_tooltip: "音频设置",
         mute_tooltip: "静音",
-        end_call_tooltip: "结束通话"
+        end_call_tooltip: "结束通话",
+        audio_settings_bnr_label: "去除背景噪音"
     },
     tr: {
         my_chats: "Sohbetlerim",
@@ -475,10 +523,14 @@ export const translations = {
         no_microphones_found: "Mikrofon bulunamadı",
         no_speakers_found: "Hoparlör bulunamadı",
         calling_status_initializing: "Başlatılıyor...",
+        calling_status_dialing: "Aranıyor...",
+        calling_status_ringing: "Çalıyor...",
+        calling_status_connected: "Bağlandı",
         calling_status_error: "Hata",
         audio_settings_tooltip: "Ses Ayarları",
         mute_tooltip: "Sessize Al",
-        end_call_tooltip: "Aramayı Sonlandır"
+        end_call_tooltip: "Aramayı Sonlandır",
+        audio_settings_bnr_label: "Arka plan gürültüsünü kaldır"
     },
     sv: {
         my_chats: "Mina chattar",
@@ -506,10 +558,14 @@ export const translations = {
         no_microphones_found: "Inga mikrofoner hittades",
         no_speakers_found: "Inga högtalare hittades",
         calling_status_initializing: "Initierar...",
+        calling_status_dialing: "Ringer upp...",
+        calling_status_ringing: "Ringer...",
+        calling_status_connected: "Ansluten",
         calling_status_error: "Fel",
         audio_settings_tooltip: "Ljudinställningar",
         mute_tooltip: "Stäng av ljud",
-        end_call_tooltip: "Avsluta samtal"
+        end_call_tooltip: "Avsluta samtal",
+        audio_settings_bnr_label: "Ta bort bakgrundsljud"
     },
     da: {
         my_chats: "Mine chats",
@@ -537,10 +593,14 @@ export const translations = {
         no_microphones_found: "Ingen mikrofoner fundet",
         no_speakers_found: "Ingen højttalere fundet",
         calling_status_initializing: "Initialiserer...",
+        calling_status_dialing: "Ringer op...",
+        calling_status_ringing: "Ringer...",
+        calling_status_connected: "Tilsluttet",
         calling_status_error: "Fejl",
         audio_settings_tooltip: "Lydindstillinger",
         mute_tooltip: "Dæmp",
-        end_call_tooltip: "Afslut opkald"
+        end_call_tooltip: "Afslut opkald",
+        audio_settings_bnr_label: "Fjern baggrundsstøj"
     },
     no: {
         my_chats: "Mine chatter",
@@ -568,10 +628,14 @@ export const translations = {
         no_microphones_found: "Ingen mikrofoner funnet",
         no_speakers_found: "Ingen høyttalere funnet",
         calling_status_initializing: "Initialiserer...",
+        calling_status_dialing: "Ringer opp...",
+        calling_status_ringing: "Ringer...",
+        calling_status_connected: "Tilkoblet",
         calling_status_error: "Feil",
         audio_settings_tooltip: "Lydinnstillinger",
         mute_tooltip: "Demp",
-        end_call_tooltip: "Avslutt samtale"
+        end_call_tooltip: "Avslutt samtale",
+        audio_settings_bnr_label: "Fjern bakgrunnsstøy"
     },
     fi: {
         my_chats: "Omat keskustelut",
@@ -599,10 +663,14 @@ export const translations = {
         no_microphones_found: "Mikrofoneja ei löytynyt",
         no_speakers_found: "Kaiuttimia ei löytynyt",
         calling_status_initializing: "Alustetaan...",
+        calling_status_dialing: "Valitaan...",
+        calling_status_ringing: "Hälyttää...",
+        calling_status_connected: "Yhdistetty",
         calling_status_error: "Virhe",
         audio_settings_tooltip: "Ääniasetukset",
         mute_tooltip: "Mykistä",
-        end_call_tooltip: "Lopeta puhelu"
+        end_call_tooltip: "Lopeta puhelu",
+        audio_settings_bnr_label: "Poista taustamelu"
     },
     hu: {
         my_chats: "Csevegéseim",
@@ -630,10 +698,14 @@ export const translations = {
         no_microphones_found: "Nem található mikrofon",
         no_speakers_found: "Nem található hangszóró",
         calling_status_initializing: "Inicializálás...",
+        calling_status_dialing: "Tárcsázás...",
+        calling_status_ringing: "Csörög...",
+        calling_status_connected: "Kapcsolódva",
         calling_status_error: "Hiba",
         audio_settings_tooltip: "Hangbeállítások",
         mute_tooltip: "Némítás",
-        end_call_tooltip: "Hívás befejezése"
+        end_call_tooltip: "Hívás befejezése",
+        audio_settings_bnr_label: "Háttérzaj eltávolítása"
     },
     el: {
         my_chats: "Οι συνομιλίες μου",
@@ -661,10 +733,14 @@ export const translations = {
         no_microphones_found: "Δεν βρέθηκαν μικρόφωνα",
         no_speakers_found: "Δεν βρέθηκαν ηχεία",
         calling_status_initializing: "Αρχικοποίηση...",
+        calling_status_dialing: "Κλήση...",
+        calling_status_ringing: "Κουδούνισμα...",
+        calling_status_connected: "Συνδέθηκε",
         calling_status_error: "Σφάλμα",
         audio_settings_tooltip: "Ρυθμίσεις ήχου",
         mute_tooltip: "Σίγαση",
-        end_call_tooltip: "Τερματισμός κλήσης"
+        end_call_tooltip: "Τερματισμός κλήσης",
+        audio_settings_bnr_label: "Αφαίρεση θορύβου παρασκηνίου"
     },
     ro: {
         my_chats: "Chat-urile mele",
@@ -692,10 +768,14 @@ export const translations = {
         no_microphones_found: "Nu s-au găsit microfoane",
         no_speakers_found: "Nu s-au găsit difuzoare",
         calling_status_initializing: "Se inițializează...",
+        calling_status_dialing: "Se apelează...",
+        calling_status_ringing: "Sună...",
+        calling_status_connected: "Conectat",
         calling_status_error: "Eroare",
         audio_settings_tooltip: "Setări audio",
         mute_tooltip: "Dezactivare sunet",
-        end_call_tooltip: "Încheie apel"
+        end_call_tooltip: "Încheie apel",
+        audio_settings_bnr_label: "Eliminare zgomot de fundal"
     },
     ar: {
         my_chats: "محادثاتي",
@@ -723,10 +803,14 @@ export const translations = {
         no_microphones_found: "لم يتم العثور على ميكروفونات",
         no_speakers_found: "لم يتم العثور على مكبرات صوت",
         calling_status_initializing: "جارٍ التهيئة...",
+        calling_status_dialing: "جاري الاتصال...",
+        calling_status_ringing: "رنين...",
+        calling_status_connected: "متصل",
         calling_status_error: "خطأ",
         audio_settings_tooltip: "إعدادات الصوت",
         mute_tooltip: "كتم الصوت",
-        end_call_tooltip: "إنهاء المكالمة"
+        end_call_tooltip: "إنهاء المكالمة",
+        audio_settings_bnr_label: "إزالة ضجيج الخلفية"
     },
     he: {
         my_chats: "הצ'אטים שלי",
@@ -754,10 +838,14 @@ export const translations = {
         no_microphones_found: "לא נמצאו מיקרופונים",
         no_speakers_found: "לא נמצאו רמקולים",
         calling_status_initializing: "מאתחל...",
+        calling_status_dialing: "מחייג...",
+        calling_status_ringing: "מצלצל...",
+        calling_status_connected: "מחובר",
         calling_status_error: "שגיאה",
         audio_settings_tooltip: "הגדרות שמע",
         mute_tooltip: "השתק",
-        end_call_tooltip: "סיים שיחה"
+        end_call_tooltip: "סיים שיחה",
+        audio_settings_bnr_label: "הסר רעשי רקע"
     },
     hi: {
         my_chats: "मेरी चैट",
@@ -785,10 +873,14 @@ export const translations = {
         no_microphones_found: "कोई माइक्रोफ़ोन नहीं मिला",
         no_speakers_found: "कोई स्पीकर नहीं मिला",
         calling_status_initializing: "प्रारंभ हो रहा है...",
+        calling_status_dialing: "डायल हो रहा है...",
+        calling_status_ringing: "घंटी बज रही है...",
+        calling_status_connected: "जुड़ा हुआ",
         calling_status_error: "त्रुटि",
         audio_settings_tooltip: "ऑडियो सेटिंग्स",
         mute_tooltip: "म्यूट करें",
-        end_call_tooltip: "कॉल समाप्त करें"
+        end_call_tooltip: "कॉल समाप्त करें",
+        audio_settings_bnr_label: "पृष्ठभूमि का शोर हटाएँ"
     },
     th: {
         my_chats: "แชทของฉัน",
@@ -801,10 +893,15 @@ export const translations = {
         submitted: "ส่งแล้ว",
         close: "ปิด",
         back: "ย้อนกลับ",
+        calling_status_initializing: "กำลังเริ่มต้น...",
+        calling_status_dialing: "กำลังโทรออก...",
+        calling_status_ringing: "กำลังโทร...",
+        calling_status_connected: "เชื่อมต่อแล้ว",
         download_transcript: "ดาวน์โหลดบทสนทนา",
         attachment: "แนบไฟล์",
         send: "ส่งข้อความ",
-        open_chat: "เปิดแชท"
+        open_chat: "เปิดแชท",
+        audio_settings_bnr_label: "ลบเสียงรบกวนพื้นหลัง"
     },
     id: {
         my_chats: "Obrolan Saya",
@@ -832,10 +929,14 @@ export const translations = {
         no_microphones_found: "Mikrofon tidak ditemukan",
         no_speakers_found: "Speaker tidak ditemukan",
         calling_status_initializing: "Menginisialisasi...",
+        calling_status_dialing: "Memanggil...",
+        calling_status_ringing: "Berdering...",
+        calling_status_connected: "Terhubung",
         calling_status_error: "Kesalahan",
         audio_settings_tooltip: "Pengaturan Audio",
         mute_tooltip: "Bisukan",
-        end_call_tooltip: "Akhiri Panggilan"
+        end_call_tooltip: "Akhiri Panggilan",
+        audio_settings_bnr_label: "Hapus Kebisingan Latar Belakang"
     },
     vi: {
         my_chats: "Trò chuyện của tôi",
@@ -863,10 +964,14 @@ export const translations = {
         no_microphones_found: "Không tìm thấy micrô",
         no_speakers_found: "Không tìm thấy loa",
         calling_status_initializing: "Đang khởi tạo...",
+        calling_status_dialing: "Đang quay số...",
+        calling_status_ringing: "Đang đổ chuông...",
+        calling_status_connected: "Đã kết nối",
         calling_status_error: "Lỗi",
         audio_settings_tooltip: "Cài đặt âm thanh",
         mute_tooltip: "Tắt tiếng",
-        end_call_tooltip: "Kết thúc cuộc gọi"
+        end_call_tooltip: "Kết thúc cuộc gọi",
+        audio_settings_bnr_label: "Xóa tiếng ồn nền"
     },
     uk: {
         my_chats: "Мої чати",
@@ -894,10 +999,14 @@ export const translations = {
         no_microphones_found: "Мікрофони не знайдені",
         no_speakers_found: "Динаміки не знайдені",
         calling_status_initializing: "Ініціалізація...",
+        calling_status_dialing: "Набір...",
+        calling_status_ringing: "Дзвінок...",
+        calling_status_connected: "Підключено",
         calling_status_error: "Помилка",
         audio_settings_tooltip: "Налаштування аудіо",
         mute_tooltip: "Вимкнути звук",
-        end_call_tooltip: "Завершити дзвінок"
+        end_call_tooltip: "Завершити дзвінок",
+        audio_settings_bnr_label: "Видалити фоновий шум"
     },
     bg: {
         my_chats: "Моите чатове",
@@ -912,8 +1021,13 @@ export const translations = {
         back: "Назад",
         download_transcript: "Изтегли транскрипция",
         attachment: "Прикачи файл",
+        calling_status_initializing: "Инициализация...",
+        calling_status_dialing: "Набиране...",
+        calling_status_ringing: "Звъни...",
+        calling_status_connected: "Свързан",
         send: "Изпрати съобщение",
-        open_chat: "Отвори чат"
+        open_chat: "Отвори чат",
+        audio_settings_bnr_label: "Премахване на фоновия шум"
     },
     hr: {
         my_chats: "Moji razgovori",
@@ -928,8 +1042,13 @@ export const translations = {
         back: "Natrag",
         download_transcript: "Preuzmi transkript",
         attachment: "Priloži datoteku",
+        calling_status_initializing: "Inicijalizacija...",
+        calling_status_dialing: "Biranje...",
+        calling_status_ringing: "Zvonjenje...",
+        calling_status_connected: "Povezano",
         send: "Pošalji poruku",
-        open_chat: "Otvori razgovor"
+        open_chat: "Otvori razgovor",
+        audio_settings_bnr_label: "Ukloni pozadinski šum"
     },
     sr: {
         my_chats: "Моја ћаскања",
@@ -944,8 +1063,13 @@ export const translations = {
         back: "Назад",
         download_transcript: "Преузми транскрипт",
         attachment: "Приложи датотеку",
+        calling_status_initializing: "Иницијализација...",
+        calling_status_dialing: "Бирање...",
+        calling_status_ringing: "Звоњење...",
+        calling_status_connected: "Повезано",
         send: "Пошаљи поруку",
-        open_chat: "Отвори ћаскање"
+        open_chat: "Отвори ћаскање",
+        audio_settings_bnr_label: "Уклони позадинскi шум"
     },
     sl: {
         my_chats: "Moji klepeti",
@@ -960,8 +1084,13 @@ export const translations = {
         back: "Nazaj",
         download_transcript: "Prenesi prepis",
         attachment: "Priloži datoteko",
+        calling_status_initializing: "Inicializacija...",
+        calling_status_dialing: "Klicanje...",
+        calling_status_ringing: "Zvonjenje...",
+        calling_status_connected: "Povezano",
         send: "Pošlji sporočilo",
-        open_chat: "Odpri klepet"
+        open_chat: "Odpri klepet",
+        audio_settings_bnr_label: "Odstrani hrup v ozadju"
     },
     et: {
         my_chats: "Minu vestlused",
@@ -976,8 +1105,13 @@ export const translations = {
         back: "Tagasi",
         download_transcript: "Laadi vestlus alla",
         attachment: "Lisa fail",
+        calling_status_initializing: "Lähtestamine...",
+        calling_status_dialing: "Valimine...",
+        calling_status_ringing: "Kutsumine...",
+        calling_status_connected: "Ühendatud",
         send: "Saada sõnum",
-        open_chat: "Ava vestlus"
+        open_chat: "Ava vestlus",
+        audio_settings_bnr_label: "Eemalda taustamüra"
     },
     lv: {
         my_chats: "Manas sarunas",
@@ -992,8 +1126,13 @@ export const translations = {
         back: "Atpakaļ",
         download_transcript: "Lejupielādēt sarunu",
         attachment: "Pievienot failu",
+        calling_status_initializing: "Inicializācija...",
+        calling_status_dialing: "Numura sastādīšana...",
+        calling_status_ringing: "Zvana...",
+        calling_status_connected: "Savienots",
         send: "Nosūtīt ziņu",
-        open_chat: "Atvērt tērzēšanu"
+        open_chat: "Atvērt tērzēšanu",
+        audio_settings_bnr_label: "Noņemt fona troksni"
     },
     lt: {
         my_chats: "Mano pokalbiai",
@@ -1008,8 +1147,13 @@ export const translations = {
         back: "Atgal",
         download_transcript: "Atsisiųsti stenogramą",
         attachment: "Prisegti failą",
+        calling_status_initializing: "Inicijavimas...",
+        calling_status_dialing: "Renkamas numeris...",
+        calling_status_ringing: "Skambina...",
+        calling_status_connected: "Prisijungta",
         send: "Siųsti žinutę",
-        open_chat: "Atidaryti pokalbį"
+        open_chat: "Atidaryti pokalbį",
+        audio_settings_bnr_label: "Pašalinti fono triukšmą"
     }
 };
 

@@ -19,6 +19,23 @@ export default defineConfig({
 
         }
     },
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (id.includes('node_modules')) {
+                        if (id.includes('@momentum-ui')) {
+                            return 'momentum-ui';
+                        }
+                        if (id.includes('lit')) {
+                            return 'lit';
+                        }
+                        return 'vendor';
+                    }
+                }
+            }
+        }
+    },
     preview: {
         proxy: {
             '/rtmsAPI': {

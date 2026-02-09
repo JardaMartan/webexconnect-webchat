@@ -7,7 +7,21 @@ export class CallManager {
         this.callingClient = null;
         this.webexLine = null;
         this.currentWebexToken = null;
-        this.isConnected = false; // Track connection state locally or sync with widget?
+        this.isConnected = false;
+        this.callSessionId = 0; // To track active call sessions and prevent race conditions
+
+        // BNR State
+        this.bnrEffect = null;
+        this.bnrEnabled = true; // Default
+        try {
+            const stored = localStorage.getItem('webex-cc-widget-bnr');
+            if (stored !== null) {
+                this.bnrEnabled = stored === 'true';
+            }
+        } catch (e) { /* ignore */ }
+
+        this._boundDisconnect = this.disconnect.bind(this);
+        window.addEventListener('beforeunload', this._boundDisconnect);
     }
 
     get i18n() {
@@ -19,6 +33,10 @@ export class CallManager {
     }
 
     async startWebexCall(payload) {
+        // Increment session ID to invalidate any previous pending calls
+        this.callSessionId++;
+        const mySessionId = this.callSessionId;
+
         const { destination, accessToken } = payload;
         if (!destination || !accessToken) {
             console.error('Missing destination or accessToken for Webex Call');
@@ -34,6 +52,9 @@ export class CallManager {
                 console.log('[Debug] Found global calling instance (singleton strategy)');
                 this.calling = window.webexCallingInstance;
             }
+
+            // Check cancellation
+            if (this.callSessionId !== mySessionId) return;
 
             // Smart Session Management
             if (this.calling) {
@@ -53,6 +74,9 @@ export class CallManager {
                 console.log('[Debug] No existing calling instance');
             }
             this.currentWebexToken = accessToken;
+
+            // Check cancellation
+            if (this.callSessionId !== mySessionId) return;
 
             if (!this.calling) {
                 // Initialization Logic
@@ -96,13 +120,19 @@ export class CallManager {
                 window.webexCallingInstance = this.calling;
                 console.log('[Debug] Calling instance initialized and saved to window.webexCallingInstance');
 
+                // Check cancellation
+                if (this.callSessionId !== mySessionId) return;
+
                 await new Promise((resolve) => {
                     this.calling.on('ready', () => {
-                        console.log('[Debug] Calling client ready');
+                        console.log('[Debug] Calling clients ready');
                         resolve();
                     });
                 });
             }
+
+            // Check cancellation
+            if (this.callSessionId !== mySessionId) return;
 
             // Registration
             console.log('[Debug] Checking registration status:', this.calling.registered);
@@ -113,11 +143,17 @@ export class CallManager {
                 console.log('[Debug] Calling Client already registered');
             }
 
+            // Check cancellation
+            if (this.callSessionId !== mySessionId) return;
+
             this.callingClient = this.calling.callingClient;
 
             // Fetch Lines
             console.log('[Debug] Ensuring callingClient lines are ready...');
             await new Promise(r => setTimeout(r, 500));
+
+            // Check cancellation
+            if (this.callSessionId !== mySessionId) return;
 
             const lines = this.callingClient.getLines();
             console.log('[Debug] Lines retrieved:', lines);
@@ -136,6 +172,9 @@ export class CallManager {
                 console.log('[Debug] Line already registered.');
             }
 
+            // Check cancellation
+            if (this.callSessionId !== mySessionId) return;
+
             this.webexLine = line;
             console.log('[Debug] Line registered status:', this.webexLine.registered);
 
@@ -149,10 +188,36 @@ export class CallManager {
             try {
                 // eslint-disable-next-line no-undef
                 this.localStream = await Calling.createMicrophoneStream({ audio: true });
+
+                // Initialize Background Noise Removal (BNR)
+                if (this.localStream && typeof this.localStream.addEffect === 'function') {
+                    console.log('[Debug] Initializing BNR effect...');
+                    try {
+                        // eslint-disable-next-line no-undef
+                        const bnrEffect = await Calling.createNoiseReductionEffect({ mode: 'WORKLET' });
+                        await this.localStream.addEffect(bnrEffect);
+                        this.bnrEffect = bnrEffect;
+
+                        if (this.bnrEnabled) {
+                            await bnrEffect.enable();
+                            console.log('[Debug] BNR enabled by default/preference');
+                        } else {
+                            await bnrEffect.disable();
+                            console.log('[Debug] BNR disabled by preference');
+                        }
+                    } catch (e) {
+                        console.error('[Debug] Failed to initialize BNR effect', e);
+                        this.bnrEffect = null;
+                    }
+                }
+
             } catch (e) {
                 console.error('[Debug] Failed to create mic stream via SDK', e);
                 this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             }
+
+            // Check cancellation
+            if (this.callSessionId !== mySessionId) return;
 
             // Dialing
             console.log('[Debug] Dialing destination:', destination);
@@ -268,6 +333,9 @@ export class CallManager {
 
     async endWebexCall() {
         console.log('[Debug] endWebexCall invoked');
+        // Invalidate any pending connection attempts
+        this.callSessionId++;
+
         this.widget.stopCallTimer();
         if (this.activeCall) {
             console.log('[Debug] Cleaning up activeCall');
@@ -293,6 +361,17 @@ export class CallManager {
 
         if (this.localStream) {
             console.log('[Debug] Stopping local stream tracks');
+
+            // Clean up effects
+            if (typeof this.localStream.disposeEffects === 'function') {
+                try {
+                    await this.localStream.disposeEffects();
+                    console.log('[Debug] Effects disposed');
+                } catch (e) {
+                    console.warn('[Debug] Failed to dispose effects', e);
+                }
+            }
+
             if (typeof this.localStream.stop === 'function') {
                 this.localStream.stop();
             } else if (typeof this.localStream.getTracks === 'function') {
@@ -303,6 +382,7 @@ export class CallManager {
 
         // Reset Widget Status
         this.widget.currentCallStatus = null;
+        this.widget._isConnected = false;
     }
 
     toggleMute() {
@@ -330,5 +410,41 @@ export class CallManager {
             icon.classList.add('icon-success');
         }
         btn.style.backgroundColor = '';
+    }
+
+    async setBNR(enable) {
+        console.log('[Debug] Setting BNR to:', enable);
+        this.bnrEnabled = enable;
+        try {
+            localStorage.setItem('webex-cc-widget-bnr', enable);
+        } catch (e) { /* ignore */ }
+
+        if (this.bnrEffect) {
+            try {
+                if (enable) {
+                    await this.bnrEffect.enable();
+                    console.log('[Debug] BNR Effect Enabled');
+                } else {
+                    await this.bnrEffect.disable();
+                    console.log('[Debug] BNR Effect Disabled');
+                }
+            } catch (e) {
+                console.error('[Debug] Failed to toggle BNR effect', e);
+            }
+        } else if (this.localStream) {
+            // Try to fetch if not cached (e.g. reload)
+            if (typeof this.localStream.getEffectByKind !== 'function') {
+                console.warn('BNR not supported on current stream');
+                return;
+            }
+            try {
+                const bnrEffect = await this.localStream.getEffectByKind('noise-reduction-effect');
+                if (bnrEffect) {
+                    this.bnrEffect = bnrEffect;
+                    if (enable) await bnrEffect.enable();
+                    else await bnrEffect.disable();
+                }
+            } catch (e) { /* ignore */ }
+        }
     }
 }
