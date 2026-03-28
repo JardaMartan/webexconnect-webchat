@@ -98,8 +98,8 @@ Guest Calling uses the [Webex Guest Issuer API](https://developer.webex.com/docs
 
 ##### 1. Licenses — Control Hub
 Ensure the org has the appropriate licenses:
-- **Customer Assist** (previously known as Webex Contact Center Calling) must be provisioned
-- Navigate to **Control Hub → Licenses** and verify Customer Assist is active
+- **Customer Assist** must be provisioned
+- Navigate to **Control Hub → Accounts → Subscriptions** and verify Customer Assist is active
 - For Webex CC integration, the queue extension number must be reachable from the Customer Assist dial plan
 
 ##### 2. Create a Service App — Developer Portal
