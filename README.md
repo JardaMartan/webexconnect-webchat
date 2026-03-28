@@ -1,9 +1,15 @@
-# Webex Connect Chat Widget
+<table><tr>
+<td valign="top">
 
-<img src="images/webchat_1.png" align="right" width="320" alt="Chat Widget Screenshot"/>
+# Webex Connect Chat Widget
 
 A custom web component for embedding Webex App (IMI) chat functionality.
 
+</td>
+<td align="right" valign="top" width="340">
+<img src="images/webchat_1.png" width="320" alt="Chat Widget Screenshot"/>
+</td>
+</tr></table>
 
 ## Configuration
 
