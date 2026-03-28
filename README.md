@@ -7,7 +7,7 @@ A custom web component for embedding Webex App (IMI) chat functionality.
 
 </td>
 <td align="right" valign="top" width="340">
-<img src="images/webchat_1.png" width="320" alt="Chat Widget Screenshot"/>
+<img src="images/webchat_2.png" width="320" alt="Chat Widget Screenshot"/>
 </td>
 </tr></table>
 
