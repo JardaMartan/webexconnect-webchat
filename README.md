@@ -1,6 +1,9 @@
 # Webex Connect Chat Widget
 
+<img src="images/webchat_1.png" align="right" width="320" alt="Chat Widget Screenshot"/>
+
 A custom web component for embedding Webex App (IMI) chat functionality.
+
 
 ## Configuration
 
@@ -76,9 +79,9 @@ Guest Calling uses the [Webex Guest Issuer API](https://developer.webex.com/docs
 - Ideal for customer-facing web chat widgets
 
 #### Documentation References
-- [Guest Issuer overview](https://developer.webex.com/docs/guest-issuer)
-- [Guest Calling API](https://developer.webex.com/docs/api/v1/guest-issuer-tokens)
-- [Webex Calling for Developers](https://developer.webex.com/docs/webex-calling)
+- [Guest Issuer overview](https://developer.webex.com/create/docs/sa-guest-management)
+- [Guest Calling API](https://developer.webex.com/calling/docs/api/v1/beta-click-to-call)
+- [Webex Calling for Developers](https://developer.webex.com/calling/docs/webex-calling-overview)
 - [Customer Assist in Control Hub](https://help.webex.com/article/n0fy4kb)
 
 ---
@@ -97,14 +100,13 @@ Ensure the org has the appropriate licenses:
 3. Provide a name and description
 4. Add the required OAuth scopes:
    ```
-   spark:calls_write
-   spark:calls_read
-   spark-guest-issuer:token_create
-   spark:people_read
+   spark:webrtc_calling
+   guest-issuer:read
+   guest-issuer:write
    ```
 5. Submit for review / save the **Client ID** and **Client Secret**
 
-> Refer to [Service App documentation](https://developer.webex.com/docs/service-app) for full instructions.
+> Refer to [Service App documentation](https://developer.webex.com/create/docs/sa-guest-management) for full instructions.
 
 ##### 3. Authorize the Service App — Control Hub
 1. In **Control Hub → Apps → Service Apps**
@@ -113,7 +115,7 @@ Ensure the org has the appropriate licenses:
 
 ##### 4. Issue Access & Refresh Tokens — Developer Portal
 1. In the Developer Portal, navigate to your Service App
-2. Use the **OAuth 2.0 token exchange** to obtain initial `access_token` and `refresh_token`
+2. Use the **OAuth 2.0 Client Secret** to obtain initial `access_token` and `refresh_token` for the authorized Webex Org (drop-down list).
 3. **Save both tokens securely** — the access token is short-lived; use the refresh token to renew it server-side
 
 ##### 5. Create a Customer Assist Queue & Number
@@ -132,26 +134,43 @@ To route calls from Customer Assist to Webex CC:
 
 #### QR Message Format — Guest Calling
 
-The Webex Connect flow injects a Guest JWT (issued server-side for the specific session) into the Quick Reply payload. The widget renders a **Start Call** card from this payload.
+The Webex Connect flow injects a Guest Token and Call Token (issued server-side for the specific session) into the Quick Reply payload. The widget renders a **Start Call** card from this payload.
 
 ```json
 {
-  "type": "webexcall",
+  "type": "guestcall",
   "destination": "1001",
-  "accessToken": "<GUEST_JWT_FOR_THIS_SESSION>"
+  "guestToken": "<GUEST_TOKEN>",
+  "callToken": "<CALL_TOKEN>"
 }
 ```
 
 | Field | Description |
 |-------|-------------|
-| `type` | Must be `"webexcall"` |
+| `type` | Must be `"guest"` |
 | `destination` | Extension or SIP URI of the Customer Assist queue (e.g. `1001`, `queue@example.webex.com`) |
-| `accessToken` | Short-lived Guest JWT, generated server-side via Guest Issuer API and passed through the flow |
+| `guestToken` | Short-lived Guest AccessToken, generated server-side via Guest Issuer API and passed through the flow |
+| `callToken` | Short-lived Call AccessToken, generated server-side via Guest Click-to-call API and passed through the flow |
 
-**Flow to generate the Guest JWT server-side:**
+**Flow to generate the Guest Token and Call Token server-side:**
 1. The Webex Connect flow triggers a webhook / function node
-2. The backend calls `POST /v1/jwt/login` with the Service App credentials and a guest user object
-3. The returned JWT is injected into the Quick Reply payload as `accessToken`
+2. The backend calls `POST /guests/token` with the Service App Access Token and a guest user object. The guest user object should look like:
+```json
+{
+  "subject": "<GUEST_ID>",
+  "displayName": "<GUEST_NAME>"
+}
+```
+The GUEST_ID can be anything, but it must be unique for each guest. It can be for example derived from an email address or from internal customer ID. It may be beneficial to use the same GUEST_ID for the all customer's sessions as the communication history is kept for each GUEST_ID. Note that the GUEST_ID cannot contain **@ . -** characters. It can contain only alphanumeric characters and underscores. 
+3. The returned access token is injected into the Quick Reply payload as `guestToken`
+4. The backend calls `POST /telephony/click2call/callToken` with the Service App Access Token and a guest calling object:
+```json
+{
+    "calledNumber": "1001",
+    "guestName": "<GUEST_NAME>"
+}
+```
+5. The returned call token is injected into the Quick Reply payload as `callToken`
 
 ---
 
@@ -165,7 +184,7 @@ For deployments where the end user has a Webex Calling account, the access token
 {
   "type": "webexcall",
   "destination": "+1234567890",
-  "accessToken": "NAMED_USER_ACCESS_TOKEN"
+  "accessToken": "<NAMED_USER_ACCESS_TOKEN>"
 }
 ```
 
