@@ -62,27 +62,118 @@ For more details, refer to the [Webex Documentation: Set up Web Chat](https://he
     *   Webex Connect uses this domain to whitelist your requests (CORS).
 ## Webex Calling Integration
 
-This widget supports in-browser voice calls using the Webex Calling SDK.
+This widget supports in-browser voice calls using the Webex Calling SDK. There are two authentication approaches; **Guest Calling is strongly preferred** for web widget deployments as it requires no end-user login.
 
-### Quick Reply Payload for "Start Call" Button
+---
 
-To trigger a call from a flow (e.g., Webex Connect), send a Quick Reply with a custom payload. The widget detects this payload to render a special "Start Call" card or button.
+### Option 1 — Guest Calling (Preferred)
 
-**Required JSON Format:**
+Guest Calling uses the [Webex Guest Issuer API](https://developer.webex.com/docs/guest-issuer) to generate short-lived JWT tokens for anonymous web users. No Webex account is required by the customer.
+
+#### Why Guest Calling?
+- No end-user login required — tokens are issued server-side and injected at runtime
+- Tokens are short-lived and scoped to a single call
+- Ideal for customer-facing web chat widgets
+
+#### Documentation References
+- [Guest Issuer overview](https://developer.webex.com/docs/guest-issuer)
+- [Guest Calling API](https://developer.webex.com/docs/api/v1/guest-issuer-tokens)
+- [Webex Calling for Developers](https://developer.webex.com/docs/webex-calling)
+- [Customer Assist in Control Hub](https://help.webex.com/article/n0fy4kb)
+
+---
+
+#### Setup Flow
+
+##### 1. Licenses — Control Hub
+Ensure the org has the appropriate licenses:
+- **Customer Assist** (previously known as Webex Contact Center Calling) must be provisioned
+- Navigate to **Control Hub → Licenses** and verify Customer Assist is active
+- For Webex CC integration, the queue extension number must be reachable from the Customer Assist dial plan
+
+##### 2. Create a Service App — Developer Portal
+1. Go to [developer.webex.com → My Webex Apps](https://developer.webex.com/my-apps)
+2. Click **Create a New App → Service App**
+3. Provide a name and description
+4. Add the required OAuth scopes:
+   ```
+   spark:calls_write
+   spark:calls_read
+   spark-guest-issuer:token_create
+   spark:people_read
+   ```
+5. Submit for review / save the **Client ID** and **Client Secret**
+
+> Refer to [Service App documentation](https://developer.webex.com/docs/service-app) for full instructions.
+
+##### 3. Authorize the Service App — Control Hub
+1. In **Control Hub → Apps → Service Apps**
+2. Find your Service App and click **Authorize**
+3. Select the org and confirm scopes
+
+##### 4. Issue Access & Refresh Tokens — Developer Portal
+1. In the Developer Portal, navigate to your Service App
+2. Use the **OAuth 2.0 token exchange** to obtain initial `access_token` and `refresh_token`
+3. **Save both tokens securely** — the access token is short-lived; use the refresh token to renew it server-side
+
+##### 5. Create a Customer Assist Queue & Number
+1. In **Control Hub → Services → Customer Assist**
+2. Create a new **Queue**
+3. Assign an **extension** (no PSTN number required for web-only calls)
+4. This extension is the `destination` in the call payload
+
+##### 6. Webex Contact Center Integration (Optional)
+To route calls from Customer Assist to Webex CC:
+1. On the Customer Assist queue number, configure **Call Forwarding** to the Webex CC endpoint
+2. The Webex CC endpoint can be an internal extension — no PSTN number allocation needed
+3. This allows the web visitor to initiate a voice call that is routed directly into a Webex CC queue/agent
+
+---
+
+#### QR Message Format — Guest Calling
+
+The Webex Connect flow injects a Guest JWT (issued server-side for the specific session) into the Quick Reply payload. The widget renders a **Start Call** card from this payload.
+
+```json
+{
+  "type": "webexcall",
+  "destination": "1001",
+  "accessToken": "<GUEST_JWT_FOR_THIS_SESSION>"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `type` | Must be `"webexcall"` |
+| `destination` | Extension or SIP URI of the Customer Assist queue (e.g. `1001`, `queue@example.webex.com`) |
+| `accessToken` | Short-lived Guest JWT, generated server-side via Guest Issuer API and passed through the flow |
+
+**Flow to generate the Guest JWT server-side:**
+1. The Webex Connect flow triggers a webhook / function node
+2. The backend calls `POST /v1/jwt/login` with the Service App credentials and a guest user object
+3. The returned JWT is injected into the Quick Reply payload as `accessToken`
+
+---
+
+### Option 2 — Standard Webex Calling (Named User)
+
+For deployments where the end user has a Webex Calling account, the access token can be passed directly. This is less suitable for anonymous web chat but supported for intranet/employee-facing deployments.
+
+#### QR Message Format — Standard Calling
 
 ```json
 {
   "type": "webexcall",
   "destination": "+1234567890",
-  "accessToken": "YOUR_WEBEX_CALLING_ACCESS_TOKEN"
+  "accessToken": "NAMED_USER_ACCESS_TOKEN"
 }
 ```
 
-*   **type**: Must be `"webexcall"`. (Legacy fallback: `description` = `"make a call using webex calling"`)
-*   **destination**: The phone number or SIP URI to dial.
-*   **accessToken**: A valid JWT access token for the Webex Calling user/device. This token is required to authenticate the call.
+> **Legacy fallback:** `description: "make a call using webex calling"` is also supported for backward compatibility.
 
-### Features
-*   **Audio Settings**: Floating panel to select Microphone and Speaker devices.
-*   **Call Controls**: Mute, Hangup, and Timer controls integrated into the chat footer.
-*   **Persistence**: Active calls remain connected even if the chat widget is toggled (minimized).
+---
+
+### Call UI Features
+- **Audio Settings**: Floating panel to select Microphone and Speaker devices
+- **Call Controls**: Mute, Hang-up, and Timer controls integrated into the chat footer
+- **Persistence**: Active calls remain connected even if the chat widget is minimized
