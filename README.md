@@ -185,15 +185,17 @@ In order to provide information about the caller, the button click generates thi
 4. Once the call is proceeding, get the callId from the SDK and send it in the QR postback Payload. The payload looks like:
 ```json
 {
-  "callId":"e9885e1a-d03f-4ed4-b026-ef46a5314adb",
   "type":"guestcall",
+  "callId":"e9885e1a-d03f-4ed4-b026-ef46a5314adb",
   "status":"dialing"
 }
 ```
 The **callId** is delivered in headers of the incoming call to the Webex CC Channel (endpoint). For example:
 ```json
 {
-  "session-id":"e9885e1ad03f4ed4b026ef46a5314adb;remote=00000000000000000000000000000000","x-cisco-location-info":"d939ee57-96c2-4e65-acb4-80f989698f68;country=DE;local","caller_id_name":"Jarda Martan (Guest)"
+  "session-id":"e9885e1ad03f4ed4b026ef46a5314adb;remote=00000000000000000000000000000000",
+  "x-cisco-location-info":"d939ee57-96c2-4e65-acb4-80f989698f68;country=DE;local",
+  "caller_id_name":"Jarda Martan (Guest)"
 }
 ```
 **session-id** is not the exact copy of the **callId**, but it's not difficult to extract the information and match the two. When we store the callId from the postback payload (for example in JDS), we can use it to identify the caller in the Webex CC Channel.
