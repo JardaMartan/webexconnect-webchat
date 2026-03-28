@@ -71,7 +71,7 @@ For more details, refer to the [Webex Documentation: Set up Web Chat](https://he
     *   Webex Connect uses this domain to whitelist your requests (CORS).
 ## Webex Calling Integration
 
-This widget supports in-browser voice calls using the Webex Calling SDK. There are two authentication approaches; **Guest Calling is strongly preferred** for web widget deployments as it requires no end-user login.
+This widget supports in-browser voice calls using the [Webex Calling SDK](https://developer.webex.com/webex-calling/docs/sdk). There are two authentication approaches; **Guest Calling is strongly preferred** for web widget deployments as it requires no end-user login or a dedicated user-based license.
 
 ---
 
@@ -88,6 +88,8 @@ Guest Calling uses the [Webex Guest Issuer API](https://developer.webex.com/docs
 - [Guest Issuer overview](https://developer.webex.com/create/docs/sa-guest-management)
 - [Guest Calling API](https://developer.webex.com/calling/docs/api/v1/beta-click-to-call)
 - [Webex Calling for Developers](https://developer.webex.com/calling/docs/webex-calling-overview)
+- [Webex Calling SDK](https://developer.webex.com/webex-calling/docs/sdk)
+- [Webex Calling SDK Kitchensink App](https://web-sdk.webex.com/samples/calling/)
 - [Customer Assist in Control Hub](https://help.webex.com/article/n0fy4kb)
 
 ---
@@ -119,10 +121,10 @@ Ensure the org has the appropriate licenses:
 2. Find your Service App and click **Authorize**
 3. Select the org and confirm scopes
 
-##### 4. Issue Access & Refresh Tokens — Developer Portal
+##### 4. Issue Service App Access & Refresh Tokens — Developer Portal
 1. In the Developer Portal, navigate to your Service App
 2. Use the **OAuth 2.0 Client Secret** to obtain initial `access_token` and `refresh_token` for the authorized Webex Org (drop-down list).
-3. **Save both tokens securely** — the access token is short-lived; use the refresh token to renew it server-side
+3. **Save both tokens securely** — the access token is short-lived; use the refresh token to renew it server-side using the [Refresh Token Method](https://developer.webex.com/create/docs/integrations#using-the-refresh-token). Before using the access token, you can check its expiration using [Get Expiration Status for a Token API](https://developer.webex.com/admin/docs/api/v1/authorizations/get-expiration-status-for-a-token).
 
 ##### 5. Create a Customer Assist Queue & Number
 1. In **Control Hub → Services → Customer Assist**
@@ -137,6 +139,15 @@ To route calls from Customer Assist to Webex CC:
 3. This allows the web visitor to initiate a voice call that is routed directly into a Webex CC queue/agent
 
 ---
+#### Standalone Testing
+Use the [Kitchensink App](https://web-sdk.webex.com/samples/calling/) to test the Guest Calling functionality. You can use Webex Developer Portal to generate guest and call tokens for and then use them in the Kitchensink App to test the Guest Calling functionality. Follow these steps in the Kitchensink App:
+1. in **Advanced Settings** click on **Choose Service** and selct **guest calling**. Leave the Service Domain blank.
+2. when calling Webex Guest APIs in the next steps, use **Service App Access Token** for authorization (paste manually into the field next to **Bearer**).
+3. generate **Guest Identity** using [Guest Issuer API](https://developer.webex.com/admin/docs/api/v1/guest-management/create-a-guest) and paste its Access Token (the Guest Token) to the **Access Token** field in the Kitchensink App.
+4. generate **Call Token** using [Guest Click-to-call API](https://developer.webex.com/calling/docs/api/v1/beta-click-to-call/create-a-call-token) and paste the token to the **JWT token for destination** field in the Kitchensink App.
+5. click on **Initialize Calling** button.
+6. click on **getMediaStreams()** button to activate microphone and speaker. You may see a browser popup asking for microphone and speaker permissions. Grant them.
+7. click on **Make Call** button. There is no need to enter destination as it's embedded in the **Call Token**. The call should establish.
 
 #### QR Message Format — Guest Calling
 
