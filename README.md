@@ -129,10 +129,19 @@ Ensure the org has the appropriate licenses:
 ##### 5. Create a Customer Assist Queue & Number
 1. In **Control Hub → Services → Customer Assist**
 2. Create a new **Queue**
-3. Assign an **extension** (no PSTN number required for web-only calls)
-4. This extension is the `destination` in the call payload and `calledNumber` in the guest call token generation API payload.
+3. Select a **Location**. This parameter is important for caller identification. As the guest user has no line assigned, the **Main number of the location** is used as the caller id. The real caller identity needs to be handled out of band, for example using [Cisco Journey Data Service](https://developer.webex.com/webex-contact-center/docs/api/v1/data-ingestion/journey-event-posting). See the Quick Reply Button postback Payload below.
+4. Assign an **extension** (no PSTN number required for web-only calls)
+5. This extension is the `destination` in the call payload and `calledNumber` in the guest call token generation API payload.
 
-##### 6. Webex Contact Center Integration (Optional)
+##### 6. Add the Customer Assist Number to Click-to-call
+This step is important, it tells the guest call token API which numbers are allowed for call token generation. Only **Customer Assist Queues and Attendant Numbers can be added to click-to-call.
+1. In **Control Hub → Services → Calling → Settings** find section **Click-to-call**
+2. Make sure click-to-call is enabled and click **Preferences**
+3. In **Add destination number** dropdown find the previously created Customer Assist Queue and select it.
+4. Check that the Queue and Number are now in the members list.
+5. Click **Save**.
+
+##### 7. Webex Contact Center Integration (Optional)
 To route calls from Customer Assist to Webex CC:
 1. On the Customer Assist queue number, configure **Call Forwarding** to the Webex CC endpoint
 2. The Webex CC endpoint can be an internal extension — no PSTN number allocation needed
@@ -151,7 +160,7 @@ Use the [Kitchensink App](https://web-sdk.webex.com/samples/calling/) to test th
 
 #### QR Message Format — Guest Calling
 
-The Webex Connect flow injects a Guest Token and Call Token (issued server-side for the specific session) into the Quick Reply payload. The widget renders a **Start Call** card from this payload.
+The Webex Connect flow injects a Guest Token and Call Token (issued server-side for the specific session) into the Quick Reply payload. The widget renders a **Call** Quick Reply button from this payload.
 
 ```json
 {
@@ -164,10 +173,30 @@ The Webex Connect flow injects a Guest Token and Call Token (issued server-side 
 
 | Field | Description |
 |-------|-------------|
-| `type` | Must be `"guest"` |
-| `destination` | Extension or SIP URI of the Customer Assist queue (e.g. `1001`, `queue@example.webex.com`) |
+| `type` | Must be `"guestcall"` |
+| `destination` | Extension of the Customer Assist queue (e.g. `1001`) |
 | `guestToken` | Short-lived Guest AccessToken, generated server-side via Guest Issuer API and passed through the flow |
 | `callToken` | Short-lived Call AccessToken, generated server-side via Guest Click-to-call API and passed through the flow |
+
+In order to provide information about the caller, the button click generates this seqence of actions:
+1. Initialize Webex Calling SDK with the tokens.
+2. Initialize media streams (microphone and speaker).
+3. Make a call (remember that destination is embedded in the call token and doesn't need to be specified).
+4. Once the call is proceeding, get the callId from the SDK and send it in the QR postback Payload. The payload looks like:
+```json
+{
+  "callId":"e9885e1a-d03f-4ed4-b026-ef46a5314adb",
+  "type":"guestcall",
+  "status":"dialing"
+}
+```
+The **callId** is delivered in headers of the incoming call to the Webex CC Channel (endpoint). For example:
+```json
+{
+  "session-id":"e9885e1ad03f4ed4b026ef46a5314adb;remote=00000000000000000000000000000000","x-cisco-location-info":"d939ee57-96c2-4e65-acb4-80f989698f68;country=DE;local","caller_id_name":"Jarda Martan (Guest)"
+}
+```
+**session-id** is not the exact copy of the **callId**, but it's not difficult to extract the information and match the two. When we store the callId from the postback payload (for example in JDS), we can use it to identify the caller in the Webex CC Channel.
 
 **Flow to generate the Guest Token and Call Token server-side:**
 1. The Webex Connect flow triggers a webhook / function node
