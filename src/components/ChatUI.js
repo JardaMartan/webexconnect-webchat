@@ -1,4 +1,22 @@
 import styles from './chat-widget.css?inline';
+import { marked } from 'marked';
+
+// Configure marked: safe defaults, no async, GFM (tables, strikethrough, etc.)
+marked.setOptions({
+    gfm: true,
+    breaks: true,  // Treat single \n as <br> (matches chat convention)
+    pedantic: false,
+    mangle: false,
+    headerIds: false,
+});
+
+// Simple HTML sanitizer: strip event handlers and javascript: hrefs
+function sanitizeHTML(html) {
+    return html
+        .replace(/ on\w+="[^"]*"/gi, '')   // remove inline event handlers
+        .replace(/ on\w+='[^']*'/gi, '')   // single-quote variant
+        .replace(/javascript:/gi, '#');    // neutralise JS hrefs
+}
 
 // Styles for progress bar moved to css
 
@@ -117,7 +135,7 @@ export class ChatUI {
             </div>
             <div class="thread-footer">
               <div class="thread-preview">
-                ${t.last_message || 'No preview available'}
+                ${t.last_message || this.i18n.t('no_preview', 'No preview available')}
               </div>
               ${t.unread_count ? `
                 <div class="unread-badge">
@@ -296,8 +314,15 @@ export class ChatUI {
 
         if (text) {
             const textSpan = document.createElement('span');
-            // Handle Newlines
-            textSpan.innerHTML = text.replace(/\n/g, '<br/>');
+            if (isOutgoing) {
+                // User messages: plain text only (safe, no XSS risk)
+                textSpan.textContent = text;
+            } else {
+                // Bot/agent messages: render as markdown
+                const rawHtml = marked.parse(text);
+                textSpan.innerHTML = sanitizeHTML(rawHtml);
+                textSpan.classList.add('markdown-body');
+            }
             item.appendChild(textSpan);
         }
 
@@ -318,29 +343,47 @@ export class ChatUI {
                     }
                 }
 
-                if (type.includes('image')) {
+                // When the server sends a generic contentType ("file"/"attachment"),
+                // derive the real type from the URL's file extension so we can choose
+                // the right renderer (image, video, audio, pdf, …).
+                const effectiveType = this._effectiveContentType(type, url);
+
+                if (effectiveType.includes('image')) {
+                    // Wrap in anchor so clicking opens the full image in a new tab
+                    const anchor = document.createElement('a');
+                    anchor.href = url;
+                    anchor.target = '_blank';
+                    anchor.rel = 'noopener noreferrer';
+                    anchor.className = 'chat-media-img-link';
+                    anchor.addEventListener('click', (e) => e.stopPropagation());
+
                     const img = document.createElement('img');
                     img.src = url;
                     img.className = 'chat-media-img';
-                    item.appendChild(img);
+                    anchor.appendChild(img);
+                    item.appendChild(anchor);
 
-                } else if (type.includes('video')) {
+                } else if (effectiveType.includes('video')) {
                     const video = document.createElement('video');
                     video.src = url;
                     video.controls = true;
                     video.className = 'chat-media-video';
                     item.appendChild(video);
+                    const vLink = this._makeOpenLink(url);
+                    if (vLink) item.appendChild(vLink);
 
-                } else if (type.includes('audio')) {
+                } else if (effectiveType.includes('audio')) {
                     const audio = document.createElement('audio');
                     audio.src = url;
                     audio.controls = true;
                     audio.className = 'chat-media-audio';
                     item.appendChild(audio);
+                    const aLink = this._makeOpenLink(url);
+                    if (aLink) item.appendChild(aLink);
 
                 }
 
-                if (type === 'location' || (m.latitude && m.longitude) || (m.payload && m.payload.latitude)) {
+                if (effectiveType === 'location' || (m.latitude && m.longitude) || (m.payload && m.payload.latitude)) {
                     // Location Map
                     const lat = m.latitude || (m.payload && m.payload.latitude);
                     const lon = m.longitude || (m.payload && m.payload.longitude);
@@ -360,27 +403,65 @@ export class ChatUI {
                         item.appendChild(mapContainer);
                     }
 
-                } else if (type.includes('application') || type.includes('pdf') || type.includes('text/') || type === 'attachment' || type === 'file') {
-                    // Generic File Attachment
-                    const fileContainer = document.createElement('div');
-                    fileContainer.className = 'chat-media-file';
+                } else if (effectiveType.includes('application') || effectiveType.includes('pdf') || effectiveType.includes('text/') || effectiveType === 'attachment' || effectiveType === 'file') {
+                    const fileName = this._deriveFileName(url, m.fileName || m.filename);
+                    const lowerUrl = (url || '').toLowerCase().split('?')[0];
+                    const lowerEffective = effectiveType.toLowerCase();
 
-                    const link = document.createElement('a');
-                    link.href = url || '#';
-                    link.textContent = '📄 ' + this._deriveFileName(url, m.fileName || m.filename);
-                    link.target = '_blank'; // Open in new tab
-                    link.className = 'file-link';
+                    // Determine if this is a PDF (by effective type or file extension)
+                    const isPdf = lowerEffective.includes('pdf') || lowerUrl.endsWith('.pdf');
 
-                    link.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        if (!url || url === '#' || url === 'undefined') {
-                            e.preventDefault();
-                            console.error('Invalid file URL:', url, m);
-                        }
-                    });
+                    // Pick a fitting emoji icon based on effective type or file extension
+                    const fileIcon = this._fileIcon(lowerEffective, lowerUrl);
 
-                    fileContainer.appendChild(link);
-                    item.appendChild(fileContainer);
+                    if (isPdf && url) {
+                        // PDF: show inline embed preview + download link
+                        const pdfContainer = document.createElement('div');
+                        pdfContainer.className = 'chat-media-pdf';
+
+                        const embed = document.createElement('iframe');
+                        embed.src = url;
+                        embed.className = 'chat-media-pdf-embed';
+                        embed.title = fileName;
+                        embed.loading = 'lazy';
+                        pdfContainer.appendChild(embed);
+
+                        const downloadRow = document.createElement('div');
+                        downloadRow.className = 'chat-media-file';
+
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.textContent = fileIcon + ' ' + fileName;
+                        link.target = '_blank';
+                        link.className = 'file-link';
+                        link.addEventListener('click', (e) => e.stopPropagation());
+
+                        downloadRow.appendChild(link);
+                        pdfContainer.appendChild(downloadRow);
+                        item.appendChild(pdfContainer);
+
+                    } else {
+                        // Generic File Attachment (Word, Excel, PPT, CSV, TXT, ZIP, etc.)
+                        const fileContainer = document.createElement('div');
+                        fileContainer.className = 'chat-media-file';
+
+                        const link = document.createElement('a');
+                        link.href = url || '#';
+                        link.textContent = fileIcon + ' ' + fileName;
+                        link.target = '_blank';
+                        link.className = 'file-link';
+
+                        link.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            if (!url || url === '#' || url === 'undefined') {
+                                e.preventDefault();
+                                console.error('Invalid file URL:', url, m);
+                            }
+                        });
+
+                        fileContainer.appendChild(link);
+                        item.appendChild(fileContainer);
+                    }
                 } else if (type === 'template' || m.contentType === 'template' || m.templateType === 'form') {
                     // Form / Template Rendering
                     const payload = m.payload;
@@ -554,16 +635,16 @@ export class ChatUI {
             });
         }
 
-        // Webex Calling Card
+        // Webex / Guest Calling Card
         const payload = msg.payload || (msg.event && msg.event.payload);
 
-        if (this._isCallPayload(payload) && payload.destination && payload.accessToken) {
-            console.log('Rendering Webex Calling Card');
+        if (this._isCallPayload(payload)) {
+            console.log('Rendering Calling Card. type:', payload.type);
             const callContainer = document.createElement('div');
             callContainer.className = 'webex-call-card';
 
             const label = document.createElement('div');
-            label.textContent = 'Incoming Call Request';
+            label.textContent = payload.description || this.i18n.t('incoming_call_request', 'Incoming Call Request');
             label.className = 'webex-call-card-label';
 
             const btn = document.createElement('md-button');
@@ -577,7 +658,7 @@ export class ChatUI {
             btn.textContent = this.i18n.t('start_call');
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                console.log('Starting Call to:', payload.destination);
+                console.log('[Call] Button clicked. payload:', payload);
                 if (this.widget) {
                     // Local Echo Only for Webex Card to avoid "New Chat" NLU trigger
                     this.addMessage({
@@ -586,7 +667,25 @@ export class ChatUI {
                         created: Date.now(),
                         payload_type: 'sentByUser'
                     }, true, false);
-                    this.widget.startWebexCall(payload);
+
+                    // Postback delayed until first alerting/progress event gives us the callId.
+                    // status + callId go into interactiveData.payload, not the message text.
+                    const postbackFn = (callId) => {
+                        const updatedInteractiveData = {
+                            type: 'callPostback',
+                            identifier: payload.type || 'webexcall',
+                            payload: { type: payload.type || 'webexcall', status: 'dialing', callId },
+                            title: this.i18n.t('start_call'),
+                            reference: 'service',
+                            url: ''
+                        };
+                        console.log('[Call] Sending delayed postback. callId:', callId);
+                        this.widget.sendMessage(this.i18n.t('start_call'), null, {
+                            interactiveData: updatedInteractiveData
+                        }, true);
+                    };
+
+                    this.widget.startWebexCall(payload, postbackFn);
                 }
             });
 
@@ -602,7 +701,7 @@ export class ChatUI {
             qrContainer.className = 'qr-container';
 
             msg.quickReplies.options.forEach(opt => {
-                if (this._isCallPayload(opt.payload) && opt.payload.destination && opt.payload.accessToken) {
+                if (this._isCallPayload(opt.payload)) {
                     const btn = document.createElement('md-button');
                     btn.variant = 'primary';
                     btn.size = '28';
@@ -642,13 +741,21 @@ export class ChatUI {
                                 url: opt.url || ""
                             };
 
-                            // Send as proper generic attachment/QR response
-                            this.widget.sendMessage(btnText, null, {
-                                relatedTid: msg.tid,
-                                interactiveData: interactiveData
-                            }, true); // skipUI: true, user requested no echo
+                            // Postback delayed until first alerting/progress event gives us the callId.
+                            // Merge status + callId into interactiveData.payload (not the message text).
+                            const postbackFn = (callId) => {
+                                const updatedInteractiveData = {
+                                    ...interactiveData,
+                                    payload: { type: opt.payload.type || 'webexcall', status: 'dialing', callId }
+                                };
+                                console.log('[Call] Sending delayed QR postback. callId:', callId);
+                                this.widget.sendMessage(btnText, null, {
+                                    relatedTid: msg.tid,
+                                    interactiveData: updatedInteractiveData
+                                }, true); // skipUI: true
+                            };
 
-                            this.widget.startWebexCall(opt.payload);
+                            this.widget.startWebexCall(opt.payload, postbackFn);
                         }
                     });
 
@@ -855,7 +962,11 @@ export class ChatUI {
             if (attachmentBtn) attachmentBtn.disabled = true;
         } else {
             footer.classList.remove('footer-hidden');
-            if (chatInput) chatInput.disabled = false;
+            if (chatInput) {
+                chatInput.disabled = false;
+                // Reset placeholder in case it was set to "Conversation ended" by endConversation()
+                chatInput.placeholder = this.i18n.t('input_placeholder', 'Type a message...');
+            }
             if (attachmentBtn) attachmentBtn.disabled = false;
 
             this.focusInput();
@@ -889,7 +1000,7 @@ export class ChatUI {
 
     _isCallPayload(payload) {
         if (!payload) return false;
-        if (payload.type === 'webexcall' || payload.type === 'call') return true;
+        if (payload.type === 'webexcall' || payload.type === 'call' || payload.type === 'guestcall') return true;
         if (payload.destination && payload.accessToken) return true; // Explicit Webex Calling properties
         if (typeof payload.description === 'string' && payload.description.toLowerCase().includes('call')) return true;
         return false;
@@ -1250,6 +1361,96 @@ export class ChatUI {
         } catch (e) {
             return '';
         }
+    }
+
+    /**
+     * Creates a small "Open in new tab ↗" link for media elements.
+     * Returns null if the URL is falsy.
+     */
+    _makeOpenLink(url) {
+        if (!url) return null;
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = this.i18n ? this.i18n.t('open_in_new_tab', 'Open in new tab ↗') : 'Open in new tab ↗';
+        a.className = 'media-open-link';
+        a.addEventListener('click', (e) => e.stopPropagation());
+        return a;
+    }
+
+    /**
+     * When the server sends a generic contentType like "file" or "attachment",
+     * derive the real content category from the URL's file extension so the
+     * correct renderer (image / video / audio / pdf / …) is chosen.
+     *
+     * If the provided type is already specific (e.g. "image/png") it is
+     * returned unchanged.
+     *
+     * @param {string} type - original contentType from the message
+     * @param {string} url  - the file URL (may contain query string)
+     * @returns {string} effective content-type string safe to use in includes() checks
+     */
+    _effectiveContentType(type, url) {
+        const generic = !type || type === 'file' || type === 'attachment';
+        if (!generic) return type; // Already specific — trust it
+
+        // Extract extension from the path part of the URL (ignore query string)
+        const path = (url || '').split('?')[0].toLowerCase();
+        const ext  = path.split('.').pop();
+
+        const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'avif'];
+        const VIDEO_EXTS = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogv'];
+        const AUDIO_EXTS = ['mp3', 'wav', 'ogg', 'aac', 'm4a', 'flac', 'opus', 'weba'];
+        const PDF_EXTS   = ['pdf'];
+        const WORD_EXTS  = ['doc', 'docx', 'odt', 'rtf'];
+        const EXCEL_EXTS = ['xls', 'xlsx', 'ods', 'csv'];
+        const PPT_EXTS   = ['ppt', 'pptx', 'odp'];
+        const TEXT_EXTS  = ['txt', 'md', 'log', 'json', 'xml', 'html', 'css', 'js', 'ts', 'yaml', 'yml'];
+        const ZIP_EXTS   = ['zip', 'gz', 'tar', 'rar', '7z', 'bz2'];
+
+        if (IMAGE_EXTS.includes(ext)) return 'image/' + (ext === 'jpg' ? 'jpeg' : ext);
+        if (VIDEO_EXTS.includes(ext)) return 'video/' + ext;
+        if (AUDIO_EXTS.includes(ext)) return 'audio/' + ext;
+        if (PDF_EXTS.includes(ext))   return 'application/pdf';
+        if (WORD_EXTS.includes(ext))  return 'application/msword';
+        if (EXCEL_EXTS.includes(ext)) return 'application/vnd.ms-excel';
+        if (PPT_EXTS.includes(ext))   return 'application/vnd.ms-powerpoint';
+        if (TEXT_EXTS.includes(ext))  return 'text/plain';
+        if (ZIP_EXTS.includes(ext))   return 'application/zip';
+
+        return type || 'file'; // Unknown extension — keep original
+    }
+
+    /**
+     * Returns an emoji icon that matches the given file type / extension.
+     * @param {string} type  - lowercase MIME type (e.g. 'application/pdf')
+     * @param {string} url   - lowercase URL without query string, used for extension fallback
+     */
+    _fileIcon(type, url) {
+        const ext = (url || '').split('.').pop();
+        const isPdf    = type.includes('pdf')  || ext === 'pdf';
+        const isWord   = type.includes('word') || type.includes('msword')       || ['doc', 'docx', 'odt', 'rtf'].includes(ext);
+        const isExcel  = type.includes('sheet')|| type.includes('excel')        || ['xls', 'xlsx', 'ods', 'csv'].includes(ext);
+        const isPpt    = type.includes('presentation') || type.includes('powerpoint') || ['ppt', 'pptx', 'odp'].includes(ext);
+        const isCsv    = type === 'text/csv'   || ext === 'csv';
+        const isText   = type.startsWith('text/')  || ['txt', 'md', 'log', 'json', 'xml', 'html', 'css', 'js'].includes(ext);
+        const isZip    = type.includes('zip')  || type.includes('archive') || type.includes('x-tar') || type.includes('gzip') || ['zip', 'gz', 'tar', 'rar', '7z'].includes(ext);
+        const isImage  = type.includes('image') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(ext);
+        const isVideo  = type.includes('video') || ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext);
+        const isAudio  = type.includes('audio') || ['mp3', 'wav', 'ogg', 'aac', 'm4a', 'flac'].includes(ext);
+
+        if (isPdf)    return '📕';
+        if (isWord)   return '📝';
+        if (isExcel)  return '📊';
+        if (isPpt)    return '📋';
+        if (isCsv)    return '📊';
+        if (isText)   return '📃';
+        if (isZip)    return '🗜️';
+        if (isImage)  return '🖼️';
+        if (isVideo)  return '🎬';
+        if (isAudio)  return '🎵';
+        return '📄'; // Generic fallback
     }
 
     _deriveFileName(url, fallback) {

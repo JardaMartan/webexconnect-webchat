@@ -1,4 +1,5 @@
-// Helper to generate random string
+import { initEncryption, isEncryptionReady, encryptMessage, wrapEncrypted, maybeDecrypt } from './MessageCrypto.js';
+
 const generateRandomString = (length) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
@@ -21,6 +22,10 @@ const CONFIG = {
   websiteId: '', // Added for message extras
   customProfileParams: '', // Added for message extras
   mqttHost: '', // Added for externalized MQTT host
+  contextParams: {}, // Campaign / customer opaque tokens set by the host page
+  encryptionEnabled: false, // Set to true when register response has encryption=1
+  appDomain: '', // appDomain from register response — used for upload URL and livechat base
+  widgetToken: '', // Bearer token from /oauth/token — used for widget-layer (livechat) endpoints
 };
 
 export const WebexClient = {
@@ -81,11 +86,31 @@ export const WebexClient = {
 
     console.log('WebexClient Initialized. UserID:', CONFIG.userId);
 
-    // Perform Registration to get Access Token
+    // Perform Registration to get Access Token.
+    // register() also reads broker.ip + appDomain from the response to set mqttHost/baseUrl.
     try {
       await WebexClient.register();
+      // After successful registration, obtain widget-layer oauth token
+      await WebexClient.widgetAuth();
     } catch (e) {
       console.error("Registration Failed", e);
+    }
+  },
+
+  /**
+   * Calls the global verifyPolicy endpoint to get broker (MQTT) and appDomain (base URL).
+   * Works for all regions via the fixed gateway rtm.imiconnect.eu.
+   * Kept as utility but no longer called separately during initialize.
+   */
+  verifyPolicy: async () => {
+    const url = `https://rtm.imiconnect.eu/rtmsAPI/api/v3/${CONFIG.appId}/verifyPolicy?os=chrome&secretKey=${encodeURIComponent(CONFIG.clientKey)}`;
+    try {
+      const response = await fetch(url, { method: 'GET' });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (e) {
+      console.warn('[WebexClient] verifyPolicy fetch error:', e);
+      return null;
     }
   },
 
@@ -98,9 +123,9 @@ export const WebexClient = {
     // BaseUrl: https://.../rtmsAPI/api/v3
     // Target: https://.../rtmsAPI/api/v3/{appId}/register
 
-    // Check if baseUrl ends with slash
-    const base = CONFIG.baseUrl.endsWith('/') ? CONFIG.baseUrl.slice(0, -1) : CONFIG.baseUrl;
-    const url = `${base}/${CONFIG.appId}/register`;
+    // register always uses the global gateway — same for all regions
+    const registerBase = 'https://rtm.imiconnect.eu/rtmsAPI/api/v3';
+    const url = `${registerBase}/${CONFIG.appId}/register`;
 
     const headers = {
       'Content-Type': 'application/json',
@@ -133,7 +158,6 @@ export const WebexClient = {
 
     if (!response.ok) {
       console.error(`Registration failed: ${response.status}`);
-      // Fallback: Check if response is valid JSON even on error
     }
 
     const json = await response.json();
@@ -141,6 +165,29 @@ export const WebexClient = {
       console.log('Registration Success. Token:', json.accessToken);
       CONFIG.accessToken = json.accessToken;
       localStorage.setItem('webex_access_token', json.accessToken);
+
+      // Read broker and appDomain from register response
+      if (json.broker && json.broker.ip) {
+        CONFIG.mqttHost = json.broker.ip.toLowerCase();
+        console.log('[WebexClient] mqttHost from register response:', CONFIG.mqttHost);
+      }
+      if (json.appDomain) {
+        CONFIG.appDomain = json.appDomain;
+        console.log('[WebexClient] appDomain from register response:', CONFIG.appDomain);
+      }
+
+      // Encryption: initialise if the policy says encryption=1 and key is present
+      const encEnabled = json.policy?.features?.encryption === '1';
+      const encKey = json.encryptionKey;
+      if (encEnabled && encKey) {
+        CONFIG.encryptionEnabled = true;
+        await initEncryption(encKey);
+        console.log('[WebexClient] Encryption enabled (AES-256-CBC). Type:', json.encryptionType || 'AES');
+      } else {
+        CONFIG.encryptionEnabled = false;
+        console.log('[WebexClient] Encryption disabled (policy.features.encryption =', json.policy?.features?.encryption, ')');
+      }
+
       return json.accessToken;
     } else {
       console.error('Registration response missing accessToken', json);
@@ -254,74 +301,56 @@ export const WebexClient = {
    */
   uploadFile: (file, onProgress) => {
     return new Promise(async (resolve, reject) => {
-      // Direct URL
-      const url = 'https://chat-widget.imi.chat/upload';
+      // Ensure we have a valid access token
+      if (!CONFIG.accessToken) {
+        console.log('[WebexClient] uploadFile: accessToken missing, running register()...');
+        try { await WebexClient.register(); } catch(e) { console.warn('register() failed:', e); }
+      }
+      if (!CONFIG.accessToken) {
+        reject(new Error('No access token available for upload'));
+        return;
+      }
 
-      // Create FormData with required fields from chat45.har
+      // Build the SDK upload URL:
+      // {appDomain}/rtmsAPI/api/v1/media/{appId}/upload?previewRequired=true&fileUrlRequired=true
+      // appDomain comes from the register response; fall back to baseUrl-derived domain.
+      let uploadBase;
+      if (CONFIG.appDomain) {
+        // appDomain is just a hostname, e.g. "tenant-usor.us.webexconnect.io"
+        uploadBase = `https://${CONFIG.appDomain}/rtmsAPI/api/v1`;
+      } else {
+        // Derive from baseUrl: replace /api/v3 with /api/v1
+        uploadBase = CONFIG.baseUrl.replace('/api/v3', '/api/v1');
+      }
+      const url = `${uploadBase}/media/${CONFIG.appId}/upload?previewRequired=true&fileUrlRequired=true`;
+
+      console.log('[WebexClient] uploadFile: URL:', url);
+
+      // FormData: field name is "media" (per original SDK)
       const formData = new FormData();
-      formData.append('AppId', CONFIG.appId);
-      formData.append('EnableShortLivedUrl', '1');
-      formData.append('file', file);
-      // Note: 'Content-Type' for file part is handled by browser/FormData
+      formData.append('media', file);
 
-      // Helper to format 32-char hex as UUID
-      const toUuid = (hex) => {
-        const clean = hex.replace(/[^a-fA-F0-9]/g, '');
-        if (clean.length !== 32) return hex; // Return as-is if not valid hex UUID
-        return `${clean.slice(0, 8)}-${clean.slice(8, 12)}-${clean.slice(12, 16)}-${clean.slice(16, 20)}-${clean.slice(20)}`;
-      };
-
-      // Ensure deviceId is retrieved from ClientID if CONFIG.deviceId is missing/empty
-      // ClientID format: AppId/UserId/DeviceId
-      let effectiveDeviceId = CONFIG.deviceId;
-      if (!effectiveDeviceId && CONFIG.clientId) {
-        const parts = CONFIG.clientId.split('/');
-        if (parts.length >= 3) {
-          effectiveDeviceId = parts[parts.length - 1];
-        }
-      }
-
-      // FIX: X-installId header must match the widgetId (instid claim) in the JWT token.
-      const formattedInstallId = toUuid((CONFIG.widgetId || crypto.randomUUID()).replace('v2_web_', '')).toUpperCase();
-      const formattedUserId = toUuid((CONFIG.userId || crypto.randomUUID()).replace('v2_web_', '')).toLowerCase();
-
-      // Fetch proper JWT for upload
-      let uploadToken;
-      try {
-        uploadToken = await WebexClient.fetchUploadToken();
-      } catch (e) {
-        console.warn('Failed to fetch upload token', e);
-      }
-      const authToken = uploadToken ? `Bearer ${uploadToken}` : (CONFIG.accessToken ? `Bearer ${CONFIG.accessToken}` : '');
-
-      // XMLHttpRequest for Progress
+      // XMLHttpRequest for progress
       const xhr = new XMLHttpRequest();
       xhr.open('POST', url, true);
 
-      // Headers (Strictly aligned with imichatwidgetv2.js and chat1-3.har validation)
-      xhr.setRequestHeader('x-Fpid', formattedUserId);
-      xhr.setRequestHeader('Authorization', authToken);
-      xhr.setRequestHeader('X-installId', formattedInstallId);
-      xhr.setRequestHeader('client_host', window.location.hostname); // Required by backend
-      xhr.setRequestHeader('x-Id', '');
-      xhr.setRequestHeader('x-TId', '');
-      xhr.setRequestHeader('Accept', 'application/json');
-      xhr.setRequestHeader('x-requested-with', 'XMLHttpRequest');
+      // Headers matching the original SDK (imiclient.js ICMediaFileManager.uploadFile)
+      xhr.setRequestHeader('secretKey', CONFIG.clientKey);
+      xhr.setRequestHeader('sdkversion', '2.0.0');
+      xhr.setRequestHeader('accessToken', CONFIG.accessToken);
+      xhr.setRequestHeader('media-type', file.type || 'application/octet-stream');
 
-      // DO NOT set Content-Type header when using FormData, browser sets it with boundary
-
-      // Progress Listener
+      // Progress listener
       if (xhr.upload && onProgress) {
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
-            const percent = (e.loaded / e.total) * 100;
-            onProgress(percent);
+            onProgress((e.loaded / e.total) * 100);
           }
         };
       }
 
       xhr.onload = () => {
-        console.log('Upload response status:', xhr.status);
+        console.log('[WebexClient] Upload response status:', xhr.status);
         const text = xhr.responseText;
 
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -329,31 +358,44 @@ export const WebexClient = {
           try {
             data = text ? JSON.parse(text) : {};
           } catch (e) {
-            console.warn('Upload: Could not parse response as JSON', e);
+            console.warn('[WebexClient] Upload: Could not parse response as JSON', e);
           }
-          console.log('Upload success:', data);
-          resolve(data);
+          console.log('[WebexClient] Upload success. mediaId:', data.mediaId, '| response:', JSON.stringify(data).substring(0, 300));
+
+          if (data.mediaId) {
+            // The SDK returns { mediaId: "4435692935633384", file: "https://..." }
+            // We pass the raw fields to the caller.
+            resolve({
+              mediaId: data.mediaId,
+              file: data.file || '',
+              contentType: file.type || 'application/octet-stream'
+            });
+          } else {
+            console.warn('[WebexClient] Upload returned no mediaId:', data);
+            reject(new Error('Upload response missing mediaId'));
+          }
         } else {
           const error = new Error(`Upload failed with status ${xhr.status}: ${text}`);
-          console.error('Upload error', error);
+          console.error('[WebexClient] Upload error', error);
           reject(error);
         }
       };
 
       xhr.onerror = () => {
         const error = new Error('Upload network error');
-        console.error('Upload error', error);
+        console.error('[WebexClient] Upload error', error);
         reject(error);
       };
 
-      console.log('Uploading file...', file.name, url);
+      console.log('[WebexClient] Uploading file...', file.name, url);
       xhr.send(formData);
     });
   },
 
   sendMessage: async (threadId, text, media = null, options = {}) => {
     const url = `${CONFIG.baseUrl}/${CONFIG.appId}/mo`;
-    const body = {
+    // Build body as a plain object first, then encrypt if required
+    const rawBody = {
       clientId: CONFIG.clientId,
       channel: "rt",
       thread: {
@@ -368,23 +410,34 @@ export const WebexClient = {
         proactive_id: 0,
         Website: CONFIG.clientHost || "example.com",
         website_id: CONFIG.websiteId || "0",
-        // Dynamically construct logic URL if needed, or just pass simple metadata
         Webpage: `https://media.imi.chat/widget/widgetloader.html?docwidth=1686&id=${CONFIG.widgetId}&org=`,
         customprofileparams: CONFIG.customProfileParams || "",
         hasprechatform: "0",
-        "Initiated from URL": window.location.href, // Dynamic URL
+        "Initiated from URL": window.location.href,
         initiatedon: "",
         "Browser language": navigator.language || "en-US",
+        browser_languages: (navigator.languages && navigator.languages.length ? navigator.languages.join(',') : navigator.language) || "en-US",
         useragent: navigator.userAgent,
+        // Merge host-page context tokens (e.g. campaignToken, customerToken) last
+        // so they take precedence over defaults.
+        ...CONFIG.contextParams,
         ...(options.extras || {})
       }
     };
 
-    if (text) {
-      body.message = text;
-    }
-    if (media) {
-      body.media = media;
+    if (text) rawBody.message = text;
+    else rawBody.message = ''; // Always include message field (original SDK does this)
+    if (media) rawBody.media = media;
+
+    // Encrypt the payload if encryption is active
+    let bodyStr;
+    if (isEncryptionReady()) {
+      const plaintext = JSON.stringify(rawBody);
+      const ciphertext = await encryptMessage(plaintext);
+      bodyStr = wrapEncrypted(ciphertext);
+      console.log('[WebexClient] Sending encrypted message.');
+    } else {
+      bodyStr = JSON.stringify(rawBody);
     }
 
     // IMPORTANT correction: sendMessage also needs auth headers
@@ -400,13 +453,13 @@ export const WebexClient = {
     // Clean comments
     // body.clientId = `${CONFIG.clientId}/at_${jwt}`; // REMOVED as per trace
 
-    console.log('Message Payload:', JSON.stringify(body, null, 2));
+    console.log('[WebexClient] Message Payload (pre-encrypt):', JSON.stringify(rawBody, null, 2).substring(0, 2000));
 
     try {
       const response = await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify(body)
+        body: bodyStr
       });
 
       console.log('Fetch response status:', response.status);
@@ -424,8 +477,6 @@ export const WebexClient = {
   },
 
   fetchHistory: async (threadId) => {
-    // The user pointed out 'history' is not in the docs. The resource is likely 'messages'.
-    // URL: https://.../apps/{appId}/user/{userId}/threads/{threadId}/messages?limit=100
     const url = `${CONFIG.baseUrl}/apps/${CONFIG.appId}/user/${CONFIG.userId}/threads/${threadId}/messages?limit=100`;
     const { headers } = await WebexClient.getAuthData();
 
@@ -434,7 +485,15 @@ export const WebexClient = {
       if (!response.ok) {
         throw new Error(`Failed to fetch messages: ${response.statusText}`);
       }
-      const data = await response.json();
+      // When encryption is active the body may be { "encrypted": "<b64>" }
+      let data;
+      if (CONFIG.encryptionEnabled) {
+        const rawText = await response.text();
+        const plain = await maybeDecrypt(rawText);
+        data = JSON.parse(plain);
+      } else {
+        data = await response.json();
+      }
       return data.messages || [];
     } catch (e) {
       console.error('Message fetch failed', e);
@@ -443,7 +502,6 @@ export const WebexClient = {
   },
 
   fetchThreads: async () => {
-    // URL: https://.../apps/{appId}/user/{userId}/threads
     const url = `${CONFIG.baseUrl}/apps/${CONFIG.appId}/user/${CONFIG.userId}/threads`;
     const { headers } = await WebexClient.getAuthData();
 
@@ -452,7 +510,14 @@ export const WebexClient = {
       if (!response.ok) {
         throw new Error(`Failed to fetch threads: ${response.statusText}`);
       }
-      const data = await response.json();
+      let data;
+      if (CONFIG.encryptionEnabled) {
+        const rawText = await response.text();
+        const plain = await maybeDecrypt(rawText);
+        data = JSON.parse(plain);
+      } else {
+        data = await response.json();
+      }
       return data.threads || [];
     } catch (e) {
       console.error('Thread fetch failed', e);
@@ -490,5 +555,262 @@ export const WebexClient = {
 
   getUserId: () => {
     return CONFIG.userId;
-  }
+  },
+
+  /**
+   * Store opaque context tokens (e.g. { campaignToken, customerToken }) supplied
+   * by the host page. They will be merged into extras on every sendMessage() call.
+   * Calling this method again replaces the previous context entirely.
+   */
+  setContextParams: (params) => {
+    CONFIG.contextParams = params && typeof params === 'object' ? { ...params } : {};
+    console.log('[WebexClient] Context params set:', CONFIG.contextParams);
+  },
+
+  /**
+   * Returns true if AES-256-CBC encryption is currently active for this session.
+   * Used by RealtimeClient to know whether to decrypt incoming MQTT messages.
+   */
+  isEncryptionEnabled: () => CONFIG.encryptionEnabled,
+
+  // ─── Widget-layer OAuth (Live Chat Protocol) ───────────────────────────
+
+  /**
+   * Obtains a widget-layer Bearer token via POST {appDomain}/oauth/token.
+   * Mirrors the original IMILiveChat.authorization() flow.
+   *
+   * Sendoauthheaders format:
+   *   grant_type: "client_credentials"
+   *   client_host: hostname
+   *   Authorization: "Basic " + btoa(browserFingerprint + ":" + installId)
+   */
+  widgetAuth: async () => {
+    const baseUrl = WebexClient._livechatBaseUrl();
+    if (!baseUrl) {
+      console.warn('[WebexClient] widgetAuth skipped — appDomain not yet available');
+      return;
+    }
+    const url = `${baseUrl}/oauth/token`;
+    const credentials = btoa(`${CONFIG.userId}:${CONFIG.widgetId}`);
+
+    try {
+      console.log('[WebexClient] widgetAuth calling:', url);
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'grant_type': 'client_credentials',
+          'client_host': CONFIG.clientHost || window.location.hostname,
+          'Authorization': `Basic ${credentials}`
+        },
+        body: ''
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        console.info('[WebexClient] widgetAuth unavailable (expected when cross-origin):', resp.status);
+        return;
+      }
+
+      const data = await resp.json();
+      if (data.access_token) {
+        CONFIG.widgetToken = data.access_token;
+        console.log('[WebexClient] widgetAuth succeeded — widget Bearer token obtained');
+
+        // The original code decodes the JWT and checks for a realm field
+        // to update profileUrl. We log it for debugging but our baseUrl
+        // is already set from the register response.
+        try {
+          const payload = JSON.parse(atob(data.access_token.split('.')[1]));
+          if (payload.realm) {
+            console.log('[WebexClient] widgetAuth JWT realm:', payload.realm);
+          }
+        } catch (_) { /* JWT decode optional */ }
+      } else {
+        console.warn('[WebexClient] widgetAuth response missing access_token:', data);
+      }
+    } catch (e) {
+      // CORS errors are expected when running cross-origin (not inside iframe)
+      console.info('[WebexClient] widgetAuth unavailable (cross-origin) — livechat lifecycle calls will be skipped');
+    }
+  },
+
+  /**
+   * Returns the base URL for livechat endpoints (derived from appDomain).
+   * Matches the original IMIGeneral.profileUrl() which is https://{appDomain}/
+   */
+  _livechatBaseUrl: () => {
+    if (CONFIG.appDomain) {
+      return `https://${CONFIG.appDomain}`;
+    }
+    // Fallback to SDK baseUrl without /api/v3
+    return CONFIG.baseUrl ? CONFIG.baseUrl.replace('/api/v3', '') : '';
+  },
+
+  /**
+   * Widget-layer auth headers for /livechats/* endpoints.
+   * Mirrors the original Sendheaders() from imichatwidgetv2.js.
+   */
+  _getWidgetHeaders: () => ({
+    'Content-Type': 'application/json',
+    'x-Fpid': CONFIG.userId,
+    'Authorization': CONFIG.widgetToken ? `Bearer ${CONFIG.widgetToken}` : '',
+    'x-installId': CONFIG.widgetId || '',
+    'x-TID': '',
+    'x-ID': '',
+    'client_host': CONFIG.clientHost || window.location.hostname
+  }),
+
+  /** Returns true if widget-layer oauth succeeded (same-origin / iframe mode). */
+  _hasWidgetAuth: () => !!CONFIG.widgetToken,
+
+  // ─── Live Chat Lifecycle APIs ──────────────────────────────────────────
+
+  /**
+   * Notifies the server the chat has ended.
+   * Original: POST {profileUrl}livechats/endchat
+   */
+  endChat: async (threadId) => {
+    if (!WebexClient._hasWidgetAuth()) return; // Cross-origin — skip
+    const url = `${WebexClient._livechatBaseUrl()}/livechats/endchat`;
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: WebexClient._getWidgetHeaders(),
+        body: JSON.stringify({
+          teamappid: CONFIG.clientId,
+          browserfingerprint: CONFIG.userId,
+          appid: CONFIG.appId,
+          threadid: threadId,
+          hostname: CONFIG.clientHost || window.location.hostname
+        })
+      });
+      console.log('[WebexClient] endChat response:', resp.status);
+    } catch (e) {
+      console.warn('[WebexClient] endChat failed:', e.message);
+    }
+  },
+
+  /**
+   * Notifies the server that the customer's connection was lost.
+   * Original: POST {profileUrl}livechats/{appId}/customers/{fpid}/connectionlost
+   */
+  notifyConnectionLost: async (status = 0) => {
+    if (!WebexClient._hasWidgetAuth()) return; // Cross-origin — skip
+    const base = WebexClient._livechatBaseUrl();
+    const url = `${base}/livechats/${CONFIG.appId}/customers/${CONFIG.userId}/connectionlost?host=${encodeURIComponent(CONFIG.clientHost || window.location.hostname)}`;
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: WebexClient._getWidgetHeaders(),
+        body: JSON.stringify({ connection_status: status })
+      });
+      console.log('[WebexClient] notifyConnectionLost response:', resp.status);
+    } catch (e) {
+      console.warn('[WebexClient] notifyConnectionLost failed:', e.message);
+    }
+  },
+
+  /**
+   * Notifies the server the customer closed/reloaded the browser.
+   * Original: POST {profileUrl}livechats/{appId}/customers/{fpid}/browserclosed
+   */
+  notifyBrowserClosed: (isReloaded = false) => {
+    if (!WebexClient._hasWidgetAuth()) return; // Cross-origin — skip
+    const base = WebexClient._livechatBaseUrl();
+    const url = `${base}/livechats/${CONFIG.appId}/customers/${CONFIG.userId}/browserclosed?host=${encodeURIComponent(CONFIG.clientHost || window.location.hostname)}`;
+    const payload = JSON.stringify({ is_reloaded: isReloaded });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+      console.log('[WebexClient] notifyBrowserClosed sent via sendBeacon');
+    } else {
+      fetch(url, {
+        method: 'POST',
+        headers: WebexClient._getWidgetHeaders(),
+        body: payload,
+        keepalive: true
+      }).catch(() => {});
+    }
+  },
+
+  /**
+   * Notifies the server the customer abandoned the chat.
+   * Original: POST {profileUrl}livechats/{appId}/customers/{fpid}/abandoned
+   */
+  notifyAbandoned: (isReloaded = false, isCloseChat = false) => {
+    if (!WebexClient._hasWidgetAuth()) return; // Cross-origin — skip
+    const base = WebexClient._livechatBaseUrl();
+    const url = `${base}/livechats/${CONFIG.appId}/customers/${CONFIG.userId}/abandoned?host=${encodeURIComponent(CONFIG.clientHost || window.location.hostname)}`;
+    const payload = JSON.stringify({ is_reloaded: isReloaded, is_closechat: isCloseChat });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+      console.log('[WebexClient] notifyAbandoned sent via sendBeacon');
+    } else {
+      fetch(url, {
+        method: 'POST',
+        headers: WebexClient._getWidgetHeaders(),
+        body: payload,
+        keepalive: true
+      }).catch(() => {});
+    }
+  },
+
+  // ─── Delivery / Read Receipts ──────────────────────────────────────────
+
+  /**
+   * Sends a delivery receipt (status=2) for a single message.
+   * Original: POST /{appId}/deliveryupdate
+   */
+  sendDeliveryReceipt: async (transactionId) => {
+    if (!transactionId) return;
+    const url = `${CONFIG.baseUrl}/${CONFIG.appId}/deliveryupdate`;
+    const { headers } = await WebexClient.getAuthData();
+    const body = {
+      status: 2,
+      tid: transactionId,
+      channel: 'rt',
+      clientId: CONFIG.clientId
+    };
+    let bodyStr;
+    if (isEncryptionReady()) {
+      bodyStr = wrapEncrypted(await encryptMessage(JSON.stringify(body)));
+    } else {
+      bodyStr = JSON.stringify(body);
+    }
+    try {
+      await fetch(url, { method: 'POST', headers, body: bodyStr });
+    } catch (e) {
+      console.warn('[WebexClient] sendDeliveryReceipt failed:', e.message);
+    }
+  },
+
+  /**
+   * Marks messages as read (status=3).
+   * Original: POST /{appId}/deliveryupdate with { tids: [...], status: 3 }
+   */
+  sendReadReceipts: async (transactionIds) => {
+    if (!transactionIds || transactionIds.length === 0) return;
+    // De-duplicate
+    const uniqueTids = [...new Set(transactionIds)];
+    const url = `${CONFIG.baseUrl}/${CONFIG.appId}/deliveryupdate`;
+    const { headers } = await WebexClient.getAuthData();
+    const body = {
+      tids: uniqueTids,
+      status: 3,
+      channel: 'rt',
+      clientId: CONFIG.clientId
+    };
+    let bodyStr;
+    if (isEncryptionReady()) {
+      bodyStr = wrapEncrypted(await encryptMessage(JSON.stringify(body)));
+    } else {
+      bodyStr = JSON.stringify(body);
+    }
+    try {
+      await fetch(url, { method: 'POST', headers, body: bodyStr });
+      console.log('[WebexClient] Read receipts sent for', uniqueTids.length, 'messages');
+    } catch (e) {
+      console.warn('[WebexClient] sendReadReceipts failed:', e.message);
+    }
+  },
 };

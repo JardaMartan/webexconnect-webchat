@@ -1,34 +1,33 @@
 
 import mqtt from 'mqtt';
+import { decryptMessage, maybeDecrypt } from './MessageCrypto.js';
+import { WebexClient } from './WebexClient.js';
 
 const MQTT_CONFIG = {
     host: 'CCBootcampSandboxccbcamp1023wbxai.msg-usor.us.webexconnect.io',
     port: 443,
     protocol: 'wss',
-    path: '/mqtt', // Standard path, might need adjustment if HAR showed different
-    clientId: `web_client_${Date.now()}` // Dynamic client ID for MQTT
+    path: '/mqtt',
+    clientId: `web_client_${Date.now()}`
 };
 
 export class RealtimeClient {
     constructor() {
         this.client = null;
         this.callbacks = [];
+        this._disconnectCallbacks = [];
     }
 
     connect(creds) {
         return new Promise((resolve, reject) => {
-            // Use dynamic host/port from credentials (provided by Register response)
             const host = creds.host;
             if (!host) {
                 console.error('MQTT Host not configured!');
                 throw new Error('Missing MQTT Host config');
             }
 
-            // Note: Protocol might need to be secure (wss)
             const url = `wss://${host}:443/mqtt`;
             console.log('Connecting to MQTT', url);
-
-            // Mask password in logs
             console.log('MQTT Creds:', { ...creds, password: '***' });
 
             this.client = mqtt.connect(url, {
@@ -47,35 +46,43 @@ export class RealtimeClient {
 
             this.client.on('error', (err) => {
                 console.error('MQTT connection error', err);
-                // Don't reject, let it retry, but valid failure handling might use a timeout race.
-                // For now, resolving on connect is primary goal. 
             });
 
-            this.client.on('message', (topic, message) => {
-                console.log('Received message:', topic, message.toString());
+            // Fire disconnect callbacks when connection is lost
+            this.client.on('close', () => {
+                console.log('[RealtimeClient] MQTT connection closed');
+                this._disconnectCallbacks.forEach(cb => cb());
+            });
+
+            this.client.on('offline', () => {
+                console.log('[RealtimeClient] MQTT client offline');
+                this._disconnectCallbacks.forEach(cb => cb());
+            });
+
+            this.client.on('message', async (topic, message) => {
+                const rawStr = message.toString();
                 try {
-                    const parsed = JSON.parse(message.toString());
+                    let payloadStr = rawStr;
+                    if (WebexClient.isEncryptionEnabled()) {
+                        try {
+                            payloadStr = await decryptMessage(rawStr);
+                            console.log('[RealtimeClient] Decrypted incoming MQTT message.');
+                        } catch (decryptErr) {
+                            console.warn('[RealtimeClient] Decrypt failed, trying as plaintext:', decryptErr.message);
+                        }
+                    }
+                    const parsed = JSON.parse(payloadStr);
                     this.callbacks.forEach(cb => cb(parsed));
                 } catch (e) {
-                    console.error('Error parsing MQTT message', e);
+                    console.error('[RealtimeClient] Error parsing/decrypting MQTT message', e, rawStr.substring(0, 60));
                 }
             });
         });
     }
 
-    // Topic structure needs to be guessed or found in HAR. 
-    // Often it's `apps/{appId}/users/{userId}/...`
-    // I'll use a wildcard or the userId based topic found in typical Webex deployments.
-    // HAR might reveal subscription. 
-    // If not, I'll try `apps/AI02083657/users/06ac4702-e37b-4054-a505-b93d432d9a18/#`
     subscribeToUserTopic(appId, userId) {
-        // Topic format: {appId}/{userId}
-        // Corrected Analysis: Reference trace len=47 means NO leading slash.
-        // Matching the username format found in reference trace
         const topic = `${appId}/${userId}`;
-
         console.log('Subscribing to topic:', topic);
-
         this.client.subscribe(topic, { qos: 1 }, (err) => {
             if (err) console.error('Subscription failed', err);
             else console.log('Subscribed successfully to', topic);
@@ -84,6 +91,11 @@ export class RealtimeClient {
 
     onMessage(callback) {
         this.callbacks.push(callback);
+    }
+
+    /** Register a callback for when the MQTT connection is lost. */
+    onDisconnect(callback) {
+        this._disconnectCallbacks.push(callback);
     }
 
     disconnect() {

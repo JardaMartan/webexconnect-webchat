@@ -35,3 +35,6 @@ coverage/
 # Test scripts
 verify_token.js
 *.zip
+
+# Release staging area (built assets)
+release_stage/assets/

@@ -37,7 +37,14 @@ export const translations = {
         audio_settings_tooltip: "Audio Settings",
         mute_tooltip: "Mute",
         end_call_tooltip: "End Call",
-        audio_settings_bnr_label: "Remove Background Noise"
+        audio_settings_bnr_label: "Remove Background Noise",
+        // Conversation / system messages
+        conversation_ended: "Conversation ended.",
+        conversation_ended_placeholder: "Conversation ended",
+        no_preview: "No preview available",
+        attachment_label: "Attachment",
+        incoming_call_request: "Incoming Call Request",
+        agent_assigned: "assigned"
     },
     es: {
         my_chats: "Mis Chats",
@@ -71,7 +78,13 @@ export const translations = {
         audio_settings_tooltip: "Configuración de Audio",
         mute_tooltip: "Silenciar",
         end_call_tooltip: "Finalizar Llamada",
-        audio_settings_bnr_label: "Eliminar ruido de fondo"
+        audio_settings_bnr_label: "Eliminar ruido de fondo",
+        conversation_ended: "Conversación finalizada.",
+        conversation_ended_placeholder: "Conversación finalizada",
+        no_preview: "Sin vista previa",
+        attachment_label: "Archivo adjunto",
+        incoming_call_request: "Solicitud de llamada entrante",
+        agent_assigned: "asignado"
     },
     it: {
         my_chats: "Le Mie Chat",
@@ -145,7 +158,13 @@ export const translations = {
         audio_settings_tooltip: "Audioeinstellungen",
         mute_tooltip: "Stummschalten",
         end_call_tooltip: "Anruf beenden",
-        audio_settings_bnr_label: "Hintergrundgeräusche entfernen"
+        audio_settings_bnr_label: "Hintergrundgeräusche entfernen",
+        conversation_ended: "Gespräch beendet.",
+        conversation_ended_placeholder: "Gespräch beendet",
+        no_preview: "Keine Vorschau verfügbar",
+        attachment_label: "Anhang",
+        incoming_call_request: "Eingehende Anrufanforderung",
+        agent_assigned: "zugewiesen"
     },
     cs: {
         my_chats: "Moje Konverzace",
@@ -181,7 +200,13 @@ export const translations = {
         audio_settings_tooltip: "Nastavení zvuku",
         mute_tooltip: "Ztlumit",
         end_call_tooltip: "Ukončit hovor",
-        audio_settings_bnr_label: "Odstranit hluk pozadí"
+        audio_settings_bnr_label: "Odstranit hluk pozadí",
+        conversation_ended: "Konverzace ukončena.",
+        conversation_ended_placeholder: "Konverzace ukončena",
+        no_preview: "Náhled není k dispozici",
+        attachment_label: "Příloha",
+        incoming_call_request: "Příchozí žádost o hovor",
+        agent_assigned: "přiřazen"
     },
     sk: {
         my_chats: "Moje Konverzácie",
@@ -218,7 +243,13 @@ export const translations = {
         audio_settings_tooltip: "Nastavenia zvuku",
         mute_tooltip: "Stlmiť",
         end_call_tooltip: "Ukončiť hovor",
-        audio_settings_bnr_label: "Odstrániť hluk pozadia"
+        audio_settings_bnr_label: "Odstrániť hluk pozadia",
+        conversation_ended: "Konverzácia ukončená.",
+        conversation_ended_placeholder: "Konverzácia ukončená",
+        no_preview: "Náhľad nie je k dispozícii",
+        attachment_label: "Príloha",
+        incoming_call_request: "Prichádzajúca žiadosť o hovor",
+        agent_assigned: "priradený"
     },
     fr: {
         my_chats: "Mes discussions",
@@ -253,7 +284,13 @@ export const translations = {
         audio_settings_tooltip: "Paramètres audio",
         mute_tooltip: "Couper le son",
         end_call_tooltip: "Raccrocher",
-        audio_settings_bnr_label: "Supprimer le bruit de fond"
+        audio_settings_bnr_label: "Supprimer le bruit de fond",
+        conversation_ended: "Conversation terminée.",
+        conversation_ended_placeholder: "Conversation terminée",
+        no_preview: "Aperçu non disponible",
+        attachment_label: "Pièce jointe",
+        incoming_call_request: "Demande d'appel entrant",
+        agent_assigned: "affecté"
     },
     pt: {
         my_chats: "Meus Chats",
@@ -355,42 +392,13 @@ export const translations = {
         audio_settings_tooltip: "Ustawienia dźwięku",
         mute_tooltip: "Wycisz",
         end_call_tooltip: "Zakończ połączenie",
-        audio_settings_bnr_label: "Usuń hałas w tle"
-    },
-    ru: {
-        my_chats: "Мои чаты",
-        start_new_chat: "Начать новый чат",
-        default_title: "Разговор",
-        chat_header: "Чат",
-        start_conversation: "Начало разговора",
-        input_placeholder: "Введите сообщение...",
-        submit: "Отправить",
-        submitted: "Отправлено",
-        close: "Закрыть",
-        back: "Назад",
-        download_transcript: "Скачать транскрипцию",
-        attachment: "Прикрепить файл",
-        send: "Отправить сообщение",
-        open_chat: "Открыть чат",
-        start_call: "Начать звонок",
-        hangup: "Завершить звонок",
-        mute: "Выключить микрофон",
-        unmute: "Включить микрофон",
-        audio_settings_title: "Настройки аудио",
-        audio_settings_mic_label: "Микрофон",
-        audio_settings_speaker_label: "Динамик",
-        loading: "Загрузка...",
-        no_microphones_found: "Микрофоны не найдены",
-        no_speakers_found: "Динамики не найдены",
-        calling_status_initializing: "Инициализация...",
-        calling_status_dialing: "Набор номера...",
-        calling_status_ringing: "Звонок...",
-        calling_status_connected: "Подключено",
-        calling_status_error: "Ошибка",
-        audio_settings_tooltip: "Настройки аудио",
-        mute_tooltip: "Выключить микрофон",
-        end_call_tooltip: "Завершить звонок",
-        audio_settings_bnr_label: "Удалить фоновый шум"
+        audio_settings_bnr_label: "Usuń hałas w tle",
+        conversation_ended: "Rozmowa zakończona.",
+        conversation_ended_placeholder: "Rozmowa zakończona",
+        no_preview: "Brak podglądu",
+        attachment_label: "Załącznik",
+        incoming_call_request: "Przychodzące żądanie połączenia",
+        agent_assigned: "przypisany"
     },
     ja: {
         my_chats: "マイチャット",
