@@ -99,7 +99,7 @@ Guest Calling uses the [Webex Guest Issuer API](https://developer.webex.com/docs
 ##### 1. Licenses — Control Hub
 Ensure the org has the appropriate licenses:
 - **Customer Assist** must be provisioned
-- Navigate to **Control Hub → Accounts → Subscriptions** and verify Customer Assist is active
+- Navigate to **Control Hub → Account → Subscriptions** and verify Customer Assist is active
 - For Webex CC integration, the queue extension number must be reachable from the Customer Assist dial plan
 
 ##### 2. Create a Service App — Developer Portal
@@ -130,7 +130,7 @@ Ensure the org has the appropriate licenses:
 1. In **Control Hub → Services → Customer Assist**
 2. Create a new **Queue**
 3. Assign an **extension** (no PSTN number required for web-only calls)
-4. This extension is the `destination` in the call payload
+4. This extension is the `destination` in the call payload and `calledNumber` in the guest call token generation API payload.
 
 ##### 6. Webex Contact Center Integration (Optional)
 To route calls from Customer Assist to Webex CC:
@@ -210,6 +210,6 @@ For deployments where the end user has a Webex Calling account, the access token
 ---
 
 ### Call UI Features
-- **Audio Settings**: Floating panel to select Microphone and Speaker devices
+- **Audio Settings**: Floating panel to select Microphone and Speaker devices. Activate/deactivate background noise removal (BNR).
 - **Call Controls**: Mute, Hang-up, and Timer controls integrated into the chat footer
 - **Persistence**: Active calls remain connected even if the chat widget is minimized
