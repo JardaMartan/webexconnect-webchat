@@ -69,7 +69,123 @@ For more details, refer to the [Webex Documentation: Set up Web Chat](https://he
 4.  **CORS Requirement**: 
     *   Ensure your `website-domain` (e.g., `kp.cz`) matches the domain where you are hosting this widget.
     *   Webex Connect uses this domain to whitelist your requests (CORS).
+
+## Autostart Message
+
+The widget can automatically start a conversation and send an initial message as soon as it loads — without any user interaction. This is useful for proactive engagement flows.
+
+### Configuration
+
+| Attribute | Description |
+|-----------|-------------|
+| `start-message` | The text to send automatically when the widget first loads and no prior conversation exists. |
+| `start-message-hidden` | If `true`, the autostart message is **not shown** in the chat UI (invisible to the customer). |
+
+```html
+<chat-widget
+  app-id="AI00000000"
+  client-key="your-client-key"
+  site-url="https://example.us.webexconnect.io"
+  website-domain="example.com"
+  widget-id="00000000-0000-0000-0000-000000000000"
+  start-message="electricity"
+  start-message-hidden="true"
+></chat-widget>
+```
+
+### Behaviour
+- The autostart fires only when there are **no existing threads** for this user (i.e. first visit).
+- On reload, existing threads are restored from the server — the autostart is **skipped** to avoid duplicates.
+- The message text is saved in `sessionStorage` as a fallback if the attribute is lost during re-renders.
+- When `start-message-hidden="true"`, the message is sent with `extras.hiddenStart = true` so the Webex Connect flow can identify it as a system trigger and suppress it in any customer-facing transcript.
+
+### Combining with Context Params
+
+Context parameters are merged into the `extras` of the autostart message, so the flow receives them on the very first event:
+
+```html
+<chat-widget
+  ...
+  start-message="electricity"
+  start-message-hidden="true"
+  context-params='{"topic":"electricity","campaignToken":"SUMMER2025"}'
+></chat-widget>
+```
+
+---
+
+## Passing Extras / Context to the Backend
+
+Every message sent by the widget carries an `extras` object that is forwarded to the Webex Connect flow. You can inject arbitrary key-value pairs into `extras` to pass customer or session context to the backend — without exposing PII in the message text.
+
+### Method 1 — HTML Attribute (`context-params`)
+
+Pass a JSON string as the `context-params` attribute. These are applied at widget initialisation and carried on every message.
+
+```html
+<chat-widget
+  ...
+  context-params='{"campaignToken":"CAMP-2025-Q1","customerToken":"abc123","source":"web"}'
+></chat-widget>
+```
+
+### Method 2 — JavaScript API (`setContext()`)
+
+Call `setContext()` on the widget element from your host page at any time (before or after the widget opens). This replaces the previous context entirely.
+
+```javascript
+const widget = document.querySelector('chat-widget');
+
+// Set context after the user logs in or selects a topic
+widget.setContext({
+  campaignToken: 'CAMP-2025-Q1',
+  customerToken: 'abc123',
+  topic: 'electricity'
+});
+```
+
+> **Note:** Call `setContext()` before the customer sends their first message, or before `start-message` fires, to ensure the context is included from the very first event.
+
+### What the Webex Connect Flow Receives
+
+The context parameters are merged into the `extras` object of every outgoing message alongside built-in fields:
+
+```json
+{
+  "extras": {
+    "Initiated from URL": "https://example.com/",
+    "Browser language": "cs-CZ",
+    "campaignToken": "CAMP-2025-Q1",
+    "customerToken": "abc123",
+    "topic": "electricity"
+  }
+}
+```
+
+In a Webex Connect flow, access them via:
+- `$(n1.extras.campaignToken)` 
+- `$(n1.extras.customerToken)` 
+- `$(n1.extras.topic)` 
+
+(where `n1` is the inbound message node)
+
+### Built-in Extras Fields
+
+These are always included automatically:
+
+| Field | Description |
+|-------|-------------|
+| `Initiated from URL` | The page URL where the widget was loaded |
+| `Browser language` | `navigator.language` (e.g. `cs-CZ`) |
+| `browser_languages` | All `navigator.languages` comma-separated |
+| `useragent` | Full user agent string |
+| `Website` | The `website-domain` attribute value |
+| `customprofileparams` | The `custom-profile-params` attribute value |
+
+---
+
 ## Webex Calling Integration
+
 
 This widget supports in-browser voice calls using the [Webex Calling SDK](https://developer.webex.com/webex-calling/docs/sdk). There are two authentication approaches; **Guest Calling is strongly preferred** for web widget deployments as it requires no end-user login or a dedicated user-based license.
 
