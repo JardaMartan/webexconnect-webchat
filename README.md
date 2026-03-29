@@ -181,7 +181,6 @@ These are always included automatically:
 | `Browser language` | `navigator.language` (e.g. `cs-CZ`) |
 | `browser_languages` | All `navigator.languages` comma-separated |
 | `useragent` | Full user agent string |
-| `Website` | The `website-domain` attribute value |
 | `customprofileparams` | The `custom-profile-params` attribute value |
 
 ---
