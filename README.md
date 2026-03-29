@@ -153,7 +153,8 @@ The context parameters are merged into the `extras` object of every outgoing mes
 ```json
 {
   "extras": {
-    "Initiated from URL": "https://example.com/",
+    "Initiated from URL": "https://example.com/webchat?campaignToken=SUMMER2025&customerToken=abc123",
+    "Website": "example.com",
     "Browser language": "cs-CZ",
     "campaignToken": "CAMP-2025-Q1",
     "customerToken": "abc123",
@@ -176,6 +177,7 @@ These are always included automatically:
 | Field | Description |
 |-------|-------------|
 | `Initiated from URL` | The page URL where the widget was loaded |
+| `Website` | The `website-domain` attribute value |
 | `Browser language` | `navigator.language` (e.g. `cs-CZ`) |
 | `browser_languages` | All `navigator.languages` comma-separated |
 | `useragent` | Full user agent string |
