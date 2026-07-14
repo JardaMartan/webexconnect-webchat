@@ -361,3 +361,53 @@ For deployments where the end user has a Webex Calling account, the access token
 - **Audio Settings**: Floating panel to select Microphone and Speaker devices. Activate/deactivate background noise removal (BNR).
 - **Call Controls**: Mute, Hang-up, and Timer controls integrated into the chat footer
 - **Persistence**: Active calls remain connected even if the chat widget is minimized
+
+---
+
+## Webex Meetings Integration
+
+In addition to point-to-point calling, the widget can host a **full Webex Meeting** (audio + video + content sharing, both send and receive) directly inside an expanded panel of the chat UI. This uses the [Webex Meetings Web SDK](https://developer.webex.com/meeting/docs/webex-meetings-web-sdk).
+
+The SDK is loaded from CDN in `index.html` (global `Webex`):
+
+```html
+<script crossorigin src="https://unpkg.com/webex/umd/meetings.min.js"></script>
+```
+
+### QR / Card Message Format — Join Meeting
+
+A Webex Connect flow injects a meeting destination and a (guest) access token into a Quick Reply option **or** a message `payload`. The widget renders a **Join Meeting** button from it.
+
+```json
+{
+  "type": "webexmeeting",
+  "destination": "12345678@webex.com",
+  "guestToken": "<GUEST_ACCESS_TOKEN>",
+  "description": "Join Meeting"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `type` | Must be `"webexmeeting"` (alias `"meeting"`). |
+| `destination` | Meeting SIP address, meeting number, or meeting link URL. |
+| `guestToken` | Short-lived access token used to initialise the SDK. Use a **Guest Issuer** token for anonymous web users, generated server-side and passed through the flow. `accessToken` is accepted as an alias for a named-user token. |
+| `description` | Optional label shown above the button. |
+
+### Behaviour
+
+When the user clicks **Join Meeting**:
+1. The Meetings SDK is initialised with the token (`Webex.init`), meetings are registered.
+2. The meeting is created from `destination` and joined **with media** (`joinWithMedia`, transcoded / non-multistream — a single composited remote video stream).
+3. Local microphone and camera streams are published; remote audio, remote video and remote content share are received via `media:ready` events.
+4. A **meeting stage** expands over the widget showing remote video, remote screen share (when active), a local self-view (picture-in-picture) and in-meeting controls.
+
+### Meeting UI Features
+- **Video**: Remote participant video plus a mirrored local self-view thumbnail.
+- **Content Sharing**: Receive remote screen share (auto-prioritised over camera video) and start/stop your own screen share (`Share screen` control).
+- **Controls**: Mute, camera on/off, share, and leave — plus a status label and call timer.
+- **Minimize**: Collapse the stage back to the chat while the meeting keeps running; re-expand at any time.
+- **Persistence**: The stage is a top-level overlay, so navigating the chat (list ↔ conversation) does not interrupt the meeting or its media streams.
+
+### Server-side Token Generation (Guest)
+Analogous to Guest Calling, the flow generates a short-lived guest access token server-side (via the [Guest Issuer API](https://developer.webex.com/docs/guest-issuer)) and injects it into the payload as `guestToken`. The guest must be authorised to join the target meeting `destination`.

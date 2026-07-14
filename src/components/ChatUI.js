@@ -694,6 +694,47 @@ export class ChatUI {
             item.appendChild(callContainer);
         }
 
+        // Webex Meeting Card ("Join Meeting")
+        if (this._isMeetingPayload(payload)) {
+            console.log('Rendering Meeting Card. type:', payload.type);
+            const meetingContainer = document.createElement('div');
+            meetingContainer.className = 'webex-meeting-card';
+
+            const label = document.createElement('div');
+            label.textContent = payload.description || this.i18n.t('meeting_invite', 'You are invited to a meeting');
+            label.className = 'webex-meeting-card-label';
+
+            const btn = document.createElement('md-button');
+            btn.variant = 'primary';
+
+            const btnIcon = document.createElement('md-icon');
+            btnIcon.setAttribute('slot', 'icon');
+            btnIcon.name = 'camera_16';
+            btn.appendChild(btnIcon);
+
+            btn.textContent = this.i18n.t('join_meeting', 'Join Meeting');
+            btn.className = 'webex-meeting-btn';
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                console.log('[Meeting] Join button clicked. payload:', payload);
+                if (btn.disabled || btn.hasAttribute('disabled')) return;
+                if (this.widget) {
+                    // Local echo so the transcript reflects the action
+                    this.addMessage({
+                        message: this.i18n.t('join_meeting', 'Join Meeting'),
+                        outgoing: true,
+                        created: Date.now(),
+                        payload_type: 'sentByUser'
+                    }, true, false);
+                    this.widget.startMeeting(payload);
+                }
+            });
+
+            meetingContainer.appendChild(label);
+            meetingContainer.appendChild(btn);
+            item.appendChild(meetingContainer);
+        }
+
         // Quick Replies
         if (msg.quickReplies && msg.quickReplies.options && Array.isArray(msg.quickReplies.options)) {
             console.log('Rendering Quick Replies. isAnswered:', msg._isAnswered, 'TID:', msg.tid);
@@ -701,6 +742,50 @@ export class ChatUI {
             qrContainer.className = 'qr-container';
 
             msg.quickReplies.options.forEach(opt => {
+                if (this._isMeetingPayload(opt.payload)) {
+                    const btn = document.createElement('md-button');
+                    btn.variant = 'primary';
+                    btn.size = '28';
+
+                    const btnIcon = document.createElement('md-icon');
+                    btnIcon.className = 'qr-btn-icon';
+                    btnIcon.name = 'camera_16';
+                    btn.appendChild(btnIcon);
+
+                    const btnText = opt.title || this.i18n.t('join_meeting', 'Join Meeting');
+                    btn.appendChild(document.createTextNode(btnText));
+                    btn.className = 'qr-button qr-button-meeting';
+
+                    // Meeting button is always enabled (allow joining from history)
+                    btn.disabled = false;
+                    btn.removeAttribute('disabled');
+
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (btn.disabled || btn.hasAttribute('disabled')) return;
+                        console.log('[Meeting] Joining meeting:', opt.payload.destination);
+                        if (this.widget) {
+                            const interactiveData = {
+                                type: opt.type || 'quickReplyPostback',
+                                identifier: opt.identifier || 'meeting',
+                                payload: opt.payload || {},
+                                title: opt.title || btnText,
+                                reference: msg.quickReplies.reference || 'service',
+                                url: opt.url || ''
+                            };
+                            // Postback so the flow knows the user joined the meeting
+                            this.widget.sendMessage(btnText, null, {
+                                relatedTid: msg.tid,
+                                interactiveData
+                            }, true);
+                            this.widget.startMeeting(opt.payload);
+                        }
+                    });
+
+                    qrContainer.appendChild(btn);
+                    return;
+                }
+
                 if (this._isCallPayload(opt.payload)) {
                     const btn = document.createElement('md-button');
                     btn.variant = 'primary';
@@ -820,6 +905,7 @@ export class ChatUI {
 
                         Array.from(qrContainer.children).forEach(b => {
                             if (b.classList.contains('qr-button-call')) return; // Skip call button
+                            if (b.classList.contains('qr-button-meeting')) return; // Skip join-meeting button
 
                             if (b === btn) {
                                 highlightSelected(b);
@@ -880,6 +966,11 @@ export class ChatUI {
                 buttons.forEach(btn => {
                     // Skip Call Button
                     if (btn.classList.contains('qr-button-call')) {
+                        return;
+                    }
+                    // Skip Join-Meeting Button — keep it clickable so the meeting can be
+                    // re-entered later from chat history (same behaviour as the call button).
+                    if (btn.classList.contains('qr-button-meeting')) {
                         return;
                     }
 
@@ -950,7 +1041,7 @@ export class ChatUI {
         const attachmentBtn = this.shadowRoot.querySelector('#attachmentBtn');
 
         const hasCallOption = isQr && lastMsg.quickReplies.options.some(o =>
-            this._isCallPayload(o.payload)
+            this._isCallPayload(o.payload) || this._isMeetingPayload(o.payload)
         );
 
         const shouldHideForQr = isQr && !lastMsg._isAnswered && !hasCallOption;
@@ -1000,10 +1091,16 @@ export class ChatUI {
 
     _isCallPayload(payload) {
         if (!payload) return false;
+        if (this._isMeetingPayload(payload)) return false; // meetings handled separately
         if (payload.type === 'webexcall' || payload.type === 'call' || payload.type === 'guestcall') return true;
         if (payload.destination && payload.accessToken) return true; // Explicit Webex Calling properties
         if (typeof payload.description === 'string' && payload.description.toLowerCase().includes('call')) return true;
         return false;
+    }
+
+    _isMeetingPayload(payload) {
+        if (!payload) return false;
+        return payload.type === 'webexmeeting' || payload.type === 'meeting';
     }
 
     renderCallControls(callStatus) {
@@ -1110,6 +1207,169 @@ export class ChatUI {
     stopCallTimer() {
         if (this.callTimerInterval) clearInterval(this.callTimerInterval);
         this.callTimerInterval = null;
+    }
+
+    // ─── Webex Meeting Stage (expanded video UI) ───────────────────────────
+    renderMeetingStage() {
+        // Avoid duplicating the stage
+        if (this.shadowRoot.querySelector('#meeting-stage')) return;
+
+        const stage = document.createElement('div');
+        stage.className = 'meeting-stage';
+        stage.id = 'meeting-stage';
+        stage.innerHTML = `
+          <div class="meeting-stage-header">
+            <span class="meeting-status-label">${this.i18n.t('meeting_status_initializing', 'Initializing…')}</span>
+            <span class="meeting-timer">00:00</span>
+            <md-tooltip message="${this.i18n.t('meeting_maximize', 'Maximize')}">
+              <button class="icon-btn meeting-maximize" aria-label="${this.i18n.t('meeting_maximize', 'Maximize')}">
+                <md-icon name="maximize_16"></md-icon>
+              </button>
+            </md-tooltip>
+            <md-tooltip message="${this.i18n.t('meeting_minimize', 'Minimize meeting')}">
+              <button class="icon-btn meeting-minimize" aria-label="${this.i18n.t('meeting_minimize', 'Minimize meeting')}">
+                <md-icon name="minus_16"></md-icon>
+              </button>
+            </md-tooltip>
+          </div>
+          <div class="meeting-videos">
+            <video class="meeting-remote-video" autoplay playsinline></video>
+            <video class="meeting-remote-share" autoplay playsinline></video>
+            <video class="meeting-local-video" autoplay playsinline muted></video>
+            <audio class="meeting-remote-audio" autoplay></audio>
+            <div class="meeting-lobby-overlay">
+              <md-spinner size="32"></md-spinner>
+              <div class="meeting-lobby-text">${this.i18n.t('meeting_status_lobby', 'Waiting for the host to let you in…')}</div>
+            </div>
+          </div>
+          <div class="meeting-controls">
+            <md-tooltip message="${this.i18n.t('mute', 'Mute')}">
+              <md-button id="mtg-mute" variant="secondary" size="40" circle aria-label="${this.i18n.t('mute', 'Mute')}">
+                <md-icon name="microphone-on_24" class="control-icon"></md-icon>
+              </md-button>
+            </md-tooltip>
+            <md-tooltip message="${this.i18n.t('camera_off', 'Turn off camera')}">
+              <md-button id="mtg-video" variant="secondary" size="40" circle aria-label="${this.i18n.t('camera_off', 'Turn off camera')}">
+                <md-icon name="camera-on_24" class="control-icon"></md-icon>
+              </md-button>
+            </md-tooltip>
+            <md-tooltip message="${this.i18n.t('share_screen', 'Share screen')}">
+              <md-button id="mtg-share" variant="secondary" size="40" circle aria-label="${this.i18n.t('share_screen', 'Share screen')}">
+                <md-icon name="share-screen_24" class="control-icon"></md-icon>
+              </md-button>
+            </md-tooltip>
+            <md-tooltip message="${this.i18n.t('leave_meeting', 'Leave')}">
+              <md-button id="mtg-leave" variant="secondary" size="40" circle aria-label="${this.i18n.t('leave_meeting', 'Leave')}">
+                <md-icon name="cancel_24" class="control-icon"></md-icon>
+              </md-button>
+            </md-tooltip>
+          </div>
+        `;
+
+        // Append at the shadow-root level (sibling of #ui-shell) so re-renders of the
+        // chat window do NOT destroy the stage and its live video streams.
+        this.shadowRoot.appendChild(stage);
+
+        stage.querySelector('#mtg-mute').addEventListener('click', () => {
+            const muted = this.widget.meetingManager.toggleMute();
+            this._updateMeetingToggle('#mtg-mute', 'microphone-on_24', 'microphone-muted_24', muted);
+        });
+        stage.querySelector('#mtg-video').addEventListener('click', () => {
+            const off = this.widget.meetingManager.toggleVideo();
+            this._updateMeetingToggle('#mtg-video', 'camera-on_24', 'camera-muted_24', off);
+        });
+        stage.querySelector('#mtg-share').addEventListener('click', async () => {
+            await this.widget.meetingManager.toggleShare();
+        });
+        stage.querySelector('#mtg-leave').addEventListener('click', () => {
+            this.widget.leaveMeeting();
+        });
+        stage.querySelector('.meeting-minimize').addEventListener('click', () => {
+            // Collapse the stage to a compact bar; the meeting keeps running.
+            stage.classList.remove('maximized');
+            this._updateMaximizeButton(stage);
+            stage.classList.toggle('minimized');
+        });
+        stage.querySelector('.meeting-maximize').addEventListener('click', () => {
+            // Expand the stage to (near) full screen, or restore it.
+            stage.classList.remove('minimized');
+            stage.classList.toggle('maximized');
+            this._updateMaximizeButton(stage);
+        });
+    }
+
+    _updateMaximizeButton(stage) {
+        const btn = stage.querySelector('.meeting-maximize');
+        if (!btn) return;
+        const icon = btn.querySelector('md-icon');
+        const isMax = stage.classList.contains('maximized');
+        if (icon) icon.setAttribute('name', isMax ? 'fullscreen-exit_16' : 'maximize_16');
+        const label = isMax
+            ? this.i18n.t('meeting_restore', 'Restore')
+            : this.i18n.t('meeting_maximize', 'Maximize');
+        btn.setAttribute('aria-label', label);
+        const tooltip = btn.closest('md-tooltip');
+        if (tooltip) tooltip.setAttribute('message', label);
+    }
+
+    _updateMeetingToggle(selector, onIcon, offIcon, isOff) {
+        const btn = this.shadowRoot.querySelector(selector);
+        if (!btn) return;
+        const icon = btn.querySelector('md-icon');
+        if (icon) icon.name = isOff ? offIcon : onIcon;
+        if (isOff) btn.classList.add('control-active-off');
+        else btn.classList.remove('control-active-off');
+    }
+
+    updateMeetingStatus(status) {
+        const el = this.shadowRoot.querySelector('.meeting-status-label');
+        if (el) el.textContent = status;
+    }
+
+    setMeetingControlsState(state) {
+        const stage = this.shadowRoot.querySelector('#meeting-stage');
+        if (stage) stage.setAttribute('data-state', state);
+    }
+
+    setMeetingShareActive(active) {
+        const stage = this.shadowRoot.querySelector('#meeting-stage');
+        if (stage) stage.classList.toggle('remote-share-active', !!active);
+    }
+
+    setMeetingSharingState(sharing) {
+        const btn = this.shadowRoot.querySelector('#mtg-share');
+        if (!btn) return;
+        btn.setAttribute('variant', sharing ? 'primary' : 'secondary');
+        btn.classList.toggle('control-active-on', !!sharing);
+    }
+
+    startMeetingTimer() {
+        this.meetingStartTime = Date.now();
+        if (this.meetingTimerInterval) clearInterval(this.meetingTimerInterval);
+        const updateUI = () => {
+            const delta = Math.floor((Date.now() - this.meetingStartTime) / 1000);
+            const min = String(Math.floor(delta / 60)).padStart(2, '0');
+            const sec = String(delta % 60).padStart(2, '0');
+            const el = this.shadowRoot.querySelector('.meeting-timer');
+            if (el) el.textContent = `${min}:${sec}`;
+        };
+        updateUI();
+        this.meetingTimerInterval = setInterval(updateUI, 1000);
+    }
+
+    stopMeetingTimer() {
+        if (this.meetingTimerInterval) clearInterval(this.meetingTimerInterval);
+        this.meetingTimerInterval = null;
+    }
+
+    removeMeetingStage() {
+        this.stopMeetingTimer();
+        const stage = this.shadowRoot.querySelector('#meeting-stage');
+        if (stage) {
+            // Detach any media streams to free the camera/mic indicators
+            stage.querySelectorAll('video, audio').forEach((el) => { el.srcObject = null; });
+            stage.remove();
+        }
     }
 
     addSystemMessage(text) {

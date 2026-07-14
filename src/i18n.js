@@ -44,7 +44,26 @@ export const translations = {
         no_preview: "No preview available",
         attachment_label: "Attachment",
         incoming_call_request: "Incoming Call Request",
-        agent_assigned: "assigned"
+        agent_assigned: "assigned",
+        // Webex Meetings
+        join_meeting: "Join Meeting",
+        leave_meeting: "Leave",
+        meeting_invite: "You are invited to a meeting",
+        meeting_minimize: "Minimize meeting",
+        meeting_maximize: "Maximize",
+        meeting_restore: "Restore",
+        share_screen: "Share screen",
+        stop_share: "Stop sharing",
+        camera_on: "Turn on camera",
+        camera_off: "Turn off camera",
+        meeting_status_initializing: "Initializing…",
+        meeting_status_joining: "Joining…",
+        meeting_status_lobby: "Waiting for the host to let you in…",
+        meeting_status_connecting: "Connecting…",
+        meeting_status_connected: "Connected",
+        meeting_status_error: "Error",
+        meeting_started_at: "Meeting started at",
+        meeting_ended_at: "Meeting ended at"
     },
     es: {
         my_chats: "Mis Chats",

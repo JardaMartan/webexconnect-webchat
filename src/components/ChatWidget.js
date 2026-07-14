@@ -3,6 +3,7 @@ import { RealtimeClient } from '../api/RealtimeClient';
 import { Localization } from '../i18n';
 import { AudioSettingsPanel } from './AudioSettingsPanel';
 import { CallManager } from './CallManager';
+import { MeetingManager } from './MeetingManager';
 import { ChatUI } from './ChatUI';
 
 export class ChatWidget extends HTMLElement {
@@ -21,6 +22,7 @@ export class ChatWidget extends HTMLElement {
     this.isDark = false;
     this.audioSettingsPanel = new AudioSettingsPanel(this);
     this.callManager = new CallManager(this);
+    this.meetingManager = new MeetingManager(this);
     this.ui = new ChatUI(this, this.shadowRoot);
     this.isLoading = false;
     this.recentQRs = new Set();
@@ -250,6 +252,9 @@ export class ChatWidget extends HTMLElement {
     this.removeEventListeners();
     if (this.callManager) {
       this.callManager.disconnect();
+    }
+    if (this.meetingManager) {
+      this.meetingManager.disconnect();
     }
     const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
     darkModeQuery.removeEventListener('change', this._handleThemeChange);
@@ -964,6 +969,19 @@ export class ChatWidget extends HTMLElement {
     this.ui.setCallControlsState('connected');
     this.ui.startCallTimer();
     this.currentCallStatus = 'connected';
+  }
+
+  // ─── Webex Meetings proxies ────────────────────────────────────────────
+  async startMeeting(payload) {
+    if (this.meetingManager) {
+      await this.meetingManager.startMeeting(payload);
+    }
+  }
+
+  async leaveMeeting() {
+    if (this.meetingManager) {
+      await this.meetingManager.leaveMeeting();
+    }
   }
 }
 

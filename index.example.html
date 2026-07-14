@@ -26,6 +26,13 @@
             color: #333;
         }
     </style>
+    <!-- Momentum UI loaded from CDN (icons font + web components) to keep the widget bundle small -->
+    <link rel="stylesheet" href="https://unpkg.com/@momentum-ui/icons@8.28.5/css/momentum-ui-icons.min.css">
+    <script type="module" crossorigin src="https://esm.sh/@momentum-ui/web-components@3.2.1?bundle"></script>
+    <!-- Webex Calling SDK (global `Calling`) — enables in-widget click-to-call -->
+    <script crossorigin src="https://unpkg.com/webex/umd/calling.min.js"></script>
+    <!-- Webex Meetings SDK (global `Webex`) — enables the in-widget "Join Meeting" experience -->
+    <script crossorigin src="https://unpkg.com/webex/umd/meetings.min.js"></script>
 </head>
 
 <body>

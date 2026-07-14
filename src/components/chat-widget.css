@@ -1378,3 +1378,291 @@ md-list {
         transform: rotate(360deg);
     }
 }
+
+/* ==========================================================================
+   WEBEX MEETING CARD ("Join Meeting")
+   ========================================================================== */
+.webex-meeting-card {
+    margin-top: 10px;
+    padding: 12px;
+    background-color: var(--md-sys-color-surface-container-low, #f7f7f7);
+    border-radius: 12px;
+    border: 1px solid var(--md-sys-color-outline-variant, #e0e0e0);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.webex-meeting-card-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--md-sys-color-on-surface, #1e1e1e);
+    text-align: center;
+}
+
+/* ==========================================================================
+   WEBEX MEETING STAGE (expanded video UI)
+   Overlay anchored to the widget; survives chat re-renders.
+   ========================================================================== */
+.meeting-stage {
+    position: fixed;
+    bottom: var(--widget-bottom);
+    /* Dock the meeting to the LEFT of the chat window so the chat stays fully
+       visible and usable while a meeting is in progress. */
+    right: calc(var(--widget-right) + var(--window-width) + 16px);
+    width: 420px;
+    height: min(var(--window-height), 86vh);
+    background: #16171a;
+    color: #fff;
+    border-radius: var(--widget-border-radius);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    border: 1px solid #000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: calc(var(--z-index) + 10);
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* Minimized: collapse to a compact floating bar revealing the chat behind */
+.meeting-stage.minimized {
+    height: 52px;
+    width: min(280px, 80vw);
+}
+
+.meeting-stage.minimized .meeting-videos,
+.meeting-stage.minimized .meeting-controls {
+    display: none;
+}
+
+/* Hide the maximize button when collapsed to a bar */
+.meeting-stage.minimized .meeting-maximize {
+    display: none;
+}
+
+/* Maximized: fill (nearly) the whole viewport. Higher specificity than the
+   docked/media-query rules, so it wins in every layout. */
+.meeting-stage.maximized {
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    width: auto;
+    height: auto;
+    max-width: none;
+    max-height: none;
+}
+
+.meeting-stage-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(0, 0, 0, 0.35);
+    flex-shrink: 0;
+}
+
+.meeting-stage-header .meeting-status-label {
+    font-size: 13px;
+    font-weight: 600;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.meeting-stage-header .meeting-timer {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.85;
+}
+
+.meeting-stage-header .meeting-minimize {
+    color: #fff;
+}
+
+.meeting-videos {
+    position: relative;
+    flex: 1;
+    background: #0d0e10;
+    overflow: hidden;
+}
+
+.meeting-remote-video,
+.meeting-remote-share {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #0d0e10;
+}
+
+/* Remote screen share is hidden until a share is active; when active it takes
+   priority over the remote camera video. */
+.meeting-remote-share {
+    display: none;
+    z-index: 2;
+}
+
+.meeting-stage.remote-share-active .meeting-remote-share {
+    display: block;
+}
+
+.meeting-stage.remote-share-active .meeting-remote-video {
+    /* Shrink remote camera into a thumbnail while sharing */
+    width: 120px;
+    height: 68px;
+    inset: auto 10px 10px auto;
+    border-radius: 8px;
+    object-fit: cover;
+    z-index: 3;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Local self-view — picture-in-picture bottom-left */
+.meeting-local-video {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    width: 120px;
+    height: 68px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #222;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    z-index: 4;
+    transform: scaleX(-1); /* mirror self-view */
+}
+
+.meeting-remote-audio {
+    display: none;
+}
+
+/* Lobby waiting overlay — shown while the guest waits for host admission */
+.meeting-lobby-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    text-align: center;
+    padding: 24px;
+    background: rgba(13, 14, 16, 0.85);
+    z-index: 5;
+}
+
+.meeting-stage[data-state="lobby"] .meeting-lobby-overlay {
+    display: flex;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.meeting-lobby-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: #fff;
+    max-width: 280px;
+    line-height: 1.4;
+}
+
+.meeting-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.4);
+    flex-shrink: 0;
+}
+
+.meeting-controls md-button {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    --md-button-container-shape: 50%;
+    --md-sys-color-primary: #2b2c30;
+    box-shadow: none !important;
+    overflow: hidden;
+}
+
+/* Force the internal Momentum button part to stay circular so no square
+   background corners show through on hover/press. */
+.meeting-controls md-button::part(button) {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+}
+
+.meeting-controls .control-active-off md-icon,
+.meeting-controls #mtg-leave md-icon {
+    color: #fff !important;
+    --md-icon-color: #fff !important;
+}
+
+/* Leave button — red. Use Momentum's secondary-variant variables (NOT a raw
+   background-color on the host) so the circular shape and ripple are preserved. */
+.meeting-controls #mtg-leave {
+    --button-secondary-bg-color: var(--md-sys-color-error, #d0021b);
+    --button-secondary-hover-bg-color: #a80016;
+    --button-secondary-pressed-bg-color: #8a0016;
+    --button-secondary-text-color: #fff;
+    --button-secondary-outline-color: transparent;
+}
+
+/* Active "off" state (muted mic / camera off) — red. */
+.meeting-controls .control-active-off {
+    --button-secondary-bg-color: var(--md-sys-color-error, #d0021b);
+    --button-secondary-hover-bg-color: #a80016;
+    --button-secondary-pressed-bg-color: #8a0016;
+    --button-secondary-text-color: #fff;
+    --button-secondary-outline-color: transparent;
+}
+
+/* Active "on" state (sharing) — accent. */
+.meeting-controls .control-active-on {
+    --button-secondary-bg-color: var(--primary-color);
+    --button-secondary-hover-bg-color: var(--primary-color);
+    --button-secondary-text-color: #fff;
+    --button-secondary-outline-color: transparent;
+}
+
+@media (max-width: 900px) {
+    /* Not enough horizontal room to sit beside the chat window — dock the
+       meeting ABOVE the chat window instead. Chat stays usable below it. */
+    .meeting-stage {
+        right: var(--widget-right);
+        bottom: calc(var(--widget-bottom) + var(--window-height) + 12px);
+        width: min(var(--window-width), 92vw);
+        height: min(300px, calc(100vh - var(--window-height) - 60px));
+    }
+
+    .meeting-stage.minimized {
+        width: min(var(--window-width), 92vw);
+    }
+}
+
+@media (max-width: 520px) {
+    /* Small screens: full-width panel docked above the chat window. */
+    .meeting-stage {
+        left: 4vw;
+        right: 4vw;
+        width: auto;
+        bottom: calc(var(--widget-bottom) + var(--window-height) + 8px);
+        height: min(38vh, 260px);
+    }
+
+    .meeting-stage.minimized {
+        left: auto;
+        width: min(var(--window-width), 92vw);
+    }
+}
